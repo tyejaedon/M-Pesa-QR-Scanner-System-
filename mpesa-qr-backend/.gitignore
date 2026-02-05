@@ -5,6 +5,7 @@ node_modules/
 .env
 src/config/serviceAccountKey.json
 qr-payment-8a0f0-firebase-adminsdk*.json
+qr-payment-adminsdk-*.json
 
 # Firebase cache
 .firebase/
