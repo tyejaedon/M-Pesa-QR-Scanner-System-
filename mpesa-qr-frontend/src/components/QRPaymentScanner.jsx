@@ -164,7 +164,7 @@ const QRPaymentScanner = ({ onPaymentInitiated, onNavigateToLanding }) => {
         `${API_BASE_URL}/daraja/customer-payment`,
         paymentRequest,
         {
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json','ngrok-skip-browser-warning': 'true' },
           timeout: 60000
         }
       );

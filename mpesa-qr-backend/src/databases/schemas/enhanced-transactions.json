@@ -8,8 +8,15 @@
           "description": "Auto-generated transaction ID",
           "example": "abcd1234efgh5678"
         },
+        "guestMerchantInfo": {
+          "type": "object",
+          "fields": {
+            "originalMerchantId": "string",
+            "isGuest": "boolean"
+          }
+        },
         "merchantId": {
-          "type": "string", 
+          "type": "string",
           "description": "Firebase UID of the merchant",
           "required": true,
           "indexed": true
@@ -21,7 +28,7 @@
         },
         "phoneNumber": {
           "type": "string",
-          "description": "Customer phone number in 254XXXXXXXXX format", 
+          "description": "Customer phone number in 254XXXXXXXXX format",
           "required": true,
           "example": "254708374149"
         },
@@ -34,7 +41,13 @@
         "status": {
           "type": "string",
           "description": "Transaction status",
-          "enum": ["pending", "success", "failed", "error", "cancelled"],
+          "enum": [
+            "pending",
+            "success",
+            "failed",
+            "error",
+            "cancelled"
+          ],
           "required": true,
           "indexed": true
         },
@@ -50,7 +63,7 @@
           "indexed": true
         },
         "updatedAt": {
-          "type": "timestamp", 
+          "type": "timestamp",
           "description": "When transaction was last updated",
           "required": true
         },
@@ -59,7 +72,7 @@
           "description": "M-Pesa STK push response",
           "fields": {
             "ResponseCode": "string",
-            "ResponseDescription": "string", 
+            "ResponseDescription": "string",
             "MerchantRequestID": "string",
             "CheckoutRequestID": "string",
             "CustomerMessage": "string"
@@ -94,13 +107,13 @@
           "required": true
         },
         "name": {
-          "type": "string", 
+          "type": "string",
           "description": "Merchant business name",
           "required": true
         },
         "email": {
           "type": "string",
-          "description": "Merchant email address", 
+          "description": "Merchant email address",
           "required": true
         },
         "phone": {
@@ -118,12 +131,16 @@
           "required": true
         },
         "updatedAt": {
-          "type": "timestamp", 
+          "type": "timestamp",
           "required": true
         },
         "status": {
           "type": "string",
-          "enum": ["active", "inactive", "suspended"],
+          "enum": [
+            "active",
+            "inactive",
+            "suspended"
+          ],
           "default": "active"
         }
       }
@@ -133,22 +150,40 @@
     {
       "collection": "transactions",
       "fields": [
-        {"field": "merchantId", "order": "ascending"},
-        {"field": "createdAt", "order": "descending"}
-      ]
-    },
-    {
-      "collection": "transactions", 
-      "fields": [
-        {"field": "merchantId", "order": "ascending"},
-        {"field": "status", "order": "ascending"},
-        {"field": "createdAt", "order": "descending"}
+        {
+          "field": "merchantId",
+          "order": "ascending"
+        },
+        {
+          "field": "createdAt",
+          "order": "descending"
+        }
       ]
     },
     {
       "collection": "transactions",
       "fields": [
-        {"field": "mpesaResponse.CheckoutRequestID", "order": "ascending"}
+        {
+          "field": "merchantId",
+          "order": "ascending"
+        },
+        {
+          "field": "status",
+          "order": "ascending"
+        },
+        {
+          "field": "createdAt",
+          "order": "descending"
+        }
+      ]
+    },
+    {
+      "collection": "transactions",
+      "fields": [
+        {
+          "field": "mpesaResponse.CheckoutRequestID",
+          "order": "ascending"
+        }
       ]
     }
   ]

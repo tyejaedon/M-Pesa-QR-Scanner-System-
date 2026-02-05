@@ -54,8 +54,10 @@ const Login = ({ onNavigateToRegister }) => {
       
       // Get Firebase ID token
       const idToken = await user.getIdToken();
+      console.log('🔑 Firebase ID token:', idToken);
       
-      console.log('📞 Verifying with backend...', `${API_BASE_URL}/api/auth/verify-token`);
+      console.log('📞 Verifying with backend...' , `${API_BASE_URL}/api/auth/verify-token`);
+      
       
       // Verify with backend and get user data
       const response = await axios.post(`${API_BASE_URL}/api/auth/verify-token`, {
@@ -63,7 +65,8 @@ const Login = ({ onNavigateToRegister }) => {
       }, {
         headers: {
           'Authorization': `Bearer ${idToken}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
         },
         timeout: 10000 // 10 second timeout
       });

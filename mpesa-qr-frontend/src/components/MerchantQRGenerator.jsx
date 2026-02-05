@@ -13,6 +13,8 @@ import Input from './ui/Input';   // Default export
 import { Label } from './ui/Label';
 import { Badge } from './ui/Badge';
 import { useAuth } from '../hooks/useAuth';
+import { API_BASE_URL } from '../utility/constants';
+
 
 const MerchantQRGenerator = () => {
   const [description, setDescription] = useState('');
@@ -34,11 +36,12 @@ const MerchantQRGenerator = () => {
 
     try {
       const token = await user.getIdToken();
-      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/daraja/generate-qr`, {
+      const response = await fetch(`${API_BASE_URL}/api/daraja/generate-qr`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true'
         },
         body: JSON.stringify({
           dynamicAmount: true,

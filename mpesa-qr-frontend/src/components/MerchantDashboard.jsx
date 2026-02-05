@@ -4,11 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import Button from './ui/Button';
 import Badge from './ui/Badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/Tabs';
-import { 
-  BarChart3, 
-  DollarSign, 
-  TrendingUp, 
-  Users, 
+import {
+  BarChart3,
+  DollarSign,
+  TrendingUp,
+  Users,
   RefreshCw,
   Calendar,
   Download,
@@ -42,7 +42,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 const MerchantDashboard = () => {
   const { user, merchantData, logout } = useAuth();
   const navigate = useNavigate();
-  
+
   const [analytics, setAnalytics] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -58,21 +58,22 @@ const MerchantDashboard = () => {
     return `KSH ${parseFloat(amount || 0).toFixed(2)}`;
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-KE', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch (error) {
-      return 'Invalid Date';
-    }
-  };
+const formatDate = (dateString) => {
+  if (!dateString) return 'N/A';
+  try {
+    const date = new Date(dateString); // Backend sends ISO strings
+    return date.toLocaleDateString('en-KE', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch (error) {
+    console.error("Format error:", error);
+    return 'Invalid Date';
+  }
+};
 
   const getStatusBadge = (status) => {
     const variants = {
@@ -81,7 +82,7 @@ const MerchantDashboard = () => {
       failed: 'error',
       error: 'error'
     };
-    
+
     return (
       <Badge variant={variants[status] || 'default'}>
         {status?.toUpperCase() || 'UNKNOWN'}
@@ -117,55 +118,82 @@ const MerchantDashboard = () => {
     URL.revokeObjectURL(url);
   };
 
-  const fetchAnalytics = async () => {
-    const token = localStorage.getItem('authToken');
-    if (!token) return;
-    
-    setLoading(true);
-    setError('');
-    
-    try {
-      const params = new URLSearchParams({
-        period,
-        ...(status !== 'all' && { status }),
-        limit: '100'
-      });
+const fetchAnalytics = async () => {
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    setError('Authentication required. Please login.');
+    return;
+  }
 
-      const response = await axios.get(
-        `${API_BASE_URL}/transactions/analytics?${params}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
+  setLoading(true);
+  setError('');
+
+  try {
+    // 1. Defensively handle the 'status' and 'period' values to avoid "undefined" strings
+    const currentStatus = status || 'all';
+    const currentPeriod = period || 'week';
+
+    const params = new URLSearchParams({
+      period: currentPeriod,
+      status: currentStatus,
+      includeQRMetrics: 'true',
+      limit: '100'
+    });
+
+    // 2. Ensure the URL includes the /api prefix and uses the centralized base URL
+    // Your backend routes in daraja.js and transactions.js use the /api prefix
+    const response = await axios.get(
+      `${API_BASE_URL}/api/transactions/analytics?${params}`, 
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true' // Vital for bypassing the ngrok landing page
         }
-      );
-
-      if (response.data.status === 'success') {
-        setAnalytics(response.data.analytics);
-        setTransactions(response.data.analytics.transactions || []);
-      } else {
-        setError('Failed to fetch analytics');
       }
-    } catch (err) {
-      console.error('Analytics fetch error:', err);
-      setError(err.response?.data?.error || 'Failed to fetch data');
-    } finally {
-      setLoading(false);
+    );
+
+    console.log('Raw API Response:', response.data);
+
+    // 3. Drill down into the 'analytics' object provided by getTransactionAnalytics
+    if (response.data.status === 'success' && response.data.analytics) {
+      const analyticsData = response.data.analytics;
+      
+      console.log('Processed Analytics Data:', analyticsData);
+      
+      setAnalytics(analyticsData);
+      // Backend returns transactions inside the analytics object
+      setTransactions(analyticsData.transactions || []);
+      
+      if ((analyticsData.transactions || []).length === 0) {
+        console.log('No transactions found for this period/filter.');
+      }
+    } else {
+      setError('No analytics data found.');
+      setTransactions([]);
     }
-  };
+  } catch (err) {
+    console.error('Analytics fetch error:', err);
+    // Standardize error messaging based on backend response
+    const errorMessage = err.response?.data?.error || 'Failed to fetch analytics data';
+    setError(errorMessage);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const fetchDebugInfo = async () => {
     const token = localStorage.getItem('authToken');
     if (!token) return;
-    
+
     try {
       const response = await axios.get(
         `${API_BASE_URL}/transactions/debug`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'ngrok-skip-browser-warning': 'true'
           }
         }
       );
@@ -191,11 +219,11 @@ const MerchantDashboard = () => {
       navigate('/login');
     }
   };
-  
+
   const handleNavigateToQRGenerator = () => {
     navigate('/generate-qr');
   };
-  
+
   const handleNavigateToScanner = () => {
     navigate('/payment-scanner');
   };
@@ -228,13 +256,13 @@ const MerchantDashboard = () => {
   };
 
   // Add dailyData for chart
-  const dailyData = analytics?.dailySummaries?.map(day => ({
-    date: day.dateFormatted,
-    revenue: day.totalRevenue,
-    successful: day.successful,
-    failed: day.failed,
-    pending: day.pending,
-  })) || [];
+const dailyData = analytics?.dailySummaries?.map(day => ({
+  date: day.dateFormatted,
+  revenue: day.totalRevenue, // Matches backend key
+  successful: day.successful,
+  failed: day.failed,
+  pending: day.pending,
+})) || [];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
@@ -251,7 +279,7 @@ const MerchantDashboard = () => {
                 <p className="text-gray-600">Welcome back, {merchantData?.name || user?.displayName || 'Merchant'}</p>
               </div>
             </div>
-            
+
             {/* Header Actions */}
             <div className="flex items-center gap-3">
               <Button
@@ -276,7 +304,7 @@ const MerchantDashboard = () => {
                   <Menu className="w-4 h-4" />
                   Menu
                 </Button>
-                
+
                 {showNavMenu && (
                   <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-lg shadow-lg py-2 z-50 border">
                     {/* QR Generator Option */}
@@ -302,9 +330,9 @@ const MerchantDashboard = () => {
                       <Smartphone className="w-4 h-4" />
                       QR Scanner
                     </button>
-                    
+
                     <hr className="my-2" />
-                    
+
                     {/* Logout Option */}
                     <button
                       onClick={() => {
@@ -337,7 +365,7 @@ const MerchantDashboard = () => {
                 <option value="all">All Time</option>
               </select>
             </div>
-            
+
             <div className="flex items-center gap-2">
               <Filter className="w-4 h-4 text-gray-600" />
               <select
@@ -363,9 +391,9 @@ const MerchantDashboard = () => {
                 <Download className="w-4 h-4" />
                 Export CSV
               </Button>
-              
-              <Button 
-                variant="outline" 
+
+              <Button
+                variant="outline"
                 size="sm"
                 onClick={() => setShowDebug(!showDebug)}
                 className="flex items-center gap-2"
@@ -482,7 +510,7 @@ const MerchantDashboard = () => {
               </div>
             </CardContent>
           </Card>
-          
+
           <Card className="hover:shadow-md transition-shadow">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -499,7 +527,7 @@ const MerchantDashboard = () => {
               </div>
             </CardContent>
           </Card>
-          
+
           <Card className="hover:shadow-md transition-shadow">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -718,8 +746,8 @@ const MerchantDashboard = () => {
                   <p className="text-gray-600 text-sm mb-4">
                     Download your transaction data as CSV
                   </p>
-                  <Button 
-                    className="w-full" 
+                  <Button
+                    className="w-full"
                     variant="outline"
                     onClick={downloadCSV}
                     disabled={!analytics?.transactions?.length}
@@ -763,7 +791,7 @@ const MerchantDashboard = () => {
                     </div>
                   </div>
                 </div>
-                
+
                 <div>
                   <h4 className="font-semibold text-sm mb-3 text-gray-700">Field Issues</h4>
                   <div className="space-y-2 text-sm">

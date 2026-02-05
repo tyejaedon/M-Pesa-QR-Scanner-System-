@@ -1,11 +1,13 @@
 // API Configuration - Support both local and ngrok
-const isDevelopment = process.env.NODE_ENV === 'development';
 const useNgrok = process.env.REACT_APP_USE_NGROK === 'true';
+const ngrokUrl = process.env.REACT_APP_API_URL?.replace(/\/$/, ""); 
+const localUrl = 'http://localhost:5000';
 
-export const API_BASE_URL = useNgrok 
-  ? process.env.REACT_APP_NGROK_URL || 'https://3938e255c6df.ngrok-free.app'
-  : process.env.REACT_APP_BACKEND_URL || 'http://localhost:3000';
 
+// Use the ngrok URL if enabled, otherwise stick to localhost
+
+// IMPORTANT: Ensure your backend uses the /api prefix consistently
+export const API_BASE_URL = (useNgrok && ngrokUrl) ? ngrokUrl : localUrl;
 // Payment Status Constants
 export const STATUS = {
   PENDING: 'pending',
@@ -18,26 +20,28 @@ export const STATUS = {
 // API Endpoints
 export const API_ENDPOINTS = {
   AUTH: {
-    LOGIN: '/auth/login',
-    SIGNUP: '/auth/signup'
+    LOGIN: '/api/auth/login',
+    SIGNUP: '/api/auth/signup',
+    VERIFY: '/api/auth/verify-token'
   },
-  // M-Pesa/Daraja endpoints
+  // M-Pesa/Daraja endpoints (Matches daraja.js)
   MPESA: {
-    CUSTOMER_PAYMENT: '/daraja/customer-payment',
-    MERCHANT_PAYMENT: '/daraja/scan-qr',
-    STK_PUSH: '/daraja/scan-qr',
-    TRIGGER_STK: '/api/trigger-stk-push',
-    CALLBACK: '/daraja/stk-callback'
+    CUSTOMER_PAYMENT: '/api/daraja/customer-payment', //
+    MERCHANT_PAYMENT: '/api/daraja/stk-push',         //
+    STK_PUSH: '/api/daraja/stk-push',                //
+    CALLBACK: '/api/daraja/stk-callback',             //
+    GENERATE_QR: '/api/daraja/generate-qr'            //
   },
+  // Transaction endpoints (Matches transactions.js)
   TRANSACTIONS: {
-    LIST: '/transactions',
-    CREATE: '/transactions',
-    GET_BY_ID: '/transactions/:id',
-    GET_ALL: '/transactions'
+    LIST: '/api/transactions',                        //
+    ANALYTICS: '/api/transactions/analytics',         //
+    GET_BY_ID: '/api/transactions/:id',               //
+    QR_INSIGHTS: '/api/transactions/qr-insights'      //
   },
   HEALTH: {
-    CHECK: '/daraja/health',
-    TEST_TOKEN: '/daraja/test-token'
+    CHECK: '/api/daraja/health-check',                //
+    TEST_TOKEN: '/api/daraja/test-token'              //
   }
 };
 

@@ -2,28 +2,31 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users collection - merchants can read/write their own data
+    
+    // Transactions collection
+    match /transactions/{transactionId} {
+      // Allow reading if the user's UID matches the merchantId OR the originalMerchantId in guest info
+      allow read: if request.auth != null && (
+        resource.data.merchantId == request.auth.uid || 
+        resource.data.guestMerchantInfo.originalMerchantId == request.auth.uid
+      );
+      
+      // Allow creation only if the merchantId being saved belongs to the sender
+      allow create: if request.auth != null && 
+        request.resource.data.merchantId == request.auth.uid;
+        
+      allow update, delete: if request.auth != null && 
+        resource.data.merchantId == request.auth.uid;
+    }
+
+    // Merchants collection (UID used as Document ID)
+    match /merchants/{merchantId} {
+      allow read: if true; // Publicly readable for QR scanning
+      allow write: if request.auth != null && request.auth.uid == merchantId;
+    }
+    
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-    
-    // Transactions collection - merchants can only access their own transactions
-    match /transactions/{transactionId} {
-      allow read, write: if request.auth != null && 
-        (resource.data.merchantId == request.auth.uid || 
-         request.auth.uid == resource.data.merchantId);
-      allow create: if request.auth != null && 
-        request.auth.uid == request.resource.data.merchantId;
-    }
-    
-    // Merchants collection - TEMPORARILY ALLOW ALL WRITES (FIX THIS LATER)
-    match /merchants/{merchantId} {
-      allow read, write: if true; // Temporary - allows backend admin access
-    }
-    
-    // Orphaned callbacks collection - system access only
-    match /orphaned_callbacks/{callbackId} {
-      allow read, write: if true;
     }
   }
 }

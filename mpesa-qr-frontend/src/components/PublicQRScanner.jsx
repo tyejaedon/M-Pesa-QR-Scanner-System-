@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import Button from './ui/Button';
 import Input from './ui/Input';
 import { Label } from './ui/Label';
+import { API_BASE_URL } from '../utility/constants';
 
 const PublicQRScanner = () => {
   const [scanning, setScanning] = useState(false);
@@ -147,10 +148,11 @@ const PublicQRScanner = () => {
     try {
       const paymentAmount = amount;
       
-      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/daraja/customer-payment`, {
+      const response = await fetch(`${API_BASE_URL}/daraja/customer-payment`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
         },
         body: JSON.stringify({
           phoneNumber: phoneNumber,
