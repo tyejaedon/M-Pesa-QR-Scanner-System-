@@ -2,11 +2,25 @@ import React, { createContext, useContext, useState } from 'react';
 
 const TabsContext = createContext();
 
-export const Tabs = ({ defaultValue, children, className = '', ...props }) => {
-  const [activeTab, setActiveTab] = useState(defaultValue);
+export const Tabs = ({ defaultValue, 
+  value,           // Catch this
+  onValueChange,   // Catch this
+  children, 
+  className = '', 
+  ...props }) => {
+  const [internalTab, setInternalTab] = useState(defaultValue);
+  
+  const activeTab = value !== undefined ? value : internalTab;
+  
+  const setActiveTab = (newValue) => {
+    if (onValueChange) {
+      onValueChange(newValue);
+    }
+    setInternalTab(newValue);
+  };
 
   return (
-    <TabsContext.Provider value={{ activeTab, setActiveTab }}>
+  <TabsContext.Provider value={{ activeTab, setActiveTab }}>
       <div className={className} {...props}>
         {children}
       </div>

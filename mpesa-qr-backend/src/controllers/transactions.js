@@ -1,7 +1,49 @@
-const admin = require("../config/firebase").admin;
-const db = require("../config/firebase").db;
+import { admin } from "../config/firebase.js";
+import { db } from "../config/firebase.js";
 
 // Firestore timestamp serialization helpers
+
+// NEW: Global fetch to test database connectivity regardless of user
+export async function getAllTransactionsGlobal(req, res) {
+  try {
+    console.log("🚀 Global fetch initiated: Bypassing user filters...");
+    
+    // Simple query with no .where() clauses
+    const snapshot = await db.collection("transactions")
+      .orderBy("createdAt", "desc")
+      .limit(50)
+      .get();
+
+    if (snapshot.empty) {
+      console.log("Empty collection: No transactions found in the entire DB.");
+      return res.status(200).json({
+        status: 'success',
+        count: 0,
+        transactions: []
+      });
+    }
+
+    const transactions = snapshot.docs.map(doc => serializeTransaction({
+      id: doc.id,
+      ...doc.data(),
+      debugMode: true // Mark these as global results
+    }));
+
+    console.log(`✅ Successfully retrieved ${transactions.length} total transactions from DB.`);
+
+    res.status(200).json({
+      status: 'success',
+      count: transactions.length,
+      transactions
+    });
+  } catch (error) {
+    console.error('Global fetch error:', error);
+    res.status(500).json({ 
+      error: `Database connection failed: ${error.message}` 
+    });
+  }
+}
+
 function convertFirestoreTimestamp(timestamp) {
   if (!timestamp) return null;
   
@@ -56,77 +98,45 @@ function serializeTransaction(transaction) {
 }
 
 // ENHANCED: Safe query executor with fallback for index issues
-async function executeQueriesWithFallback(directQuery, guestQuery, period, filterDate, endFilterDate) {
+// Add merchantId and guestId as explicit arguments
+async function executeQueriesWithFallback(directQuery, guestQuery, merchantId, guestId, period, filterDate, endFilterDate) {
   try {
-    // Try to execute both queries with date filtering
     const [directSnapshot, guestSnapshot] = await Promise.all([
       directQuery.get(),
       guestQuery.get()
     ]);
-
-    console.log(`Successfully executed queries with date filtering`);
     return [directSnapshot, guestSnapshot];
-    
   } catch (error) {
-    console.log(`Query with date filtering failed (likely missing index): ${error.message}`);
-    
-    // Fallback: Execute queries without date filtering and filter in memory
-    console.log(`Falling back to queries without date filtering...`);
-    
+    console.log(`Initial query failed: ${error.message}`);
+    console.log(`Falling back to simple merchant lookup...`);
+
     try {
-      // Remove date filtering from queries
-      const directQuerySimple = db.collection("transactions")
-        .where("merchantId", "==", directQuery._delegate._query.filters[0].value);
-        
-      const guestQuerySimple = db.collection("transactions")
-        .where("guestMerchantInfo.originalMerchantId", "==", guestQuery._delegate._query.filters[0].value);
-      
+      // ✅ Use the IDs passed as arguments instead of digging into internals
+      const directQuerySimple = db.collection("transactions").where("merchantId", "==", merchantId);
+      const guestQuerySimple = db.collection("transactions").where("guestMerchantInfo.originalMerchantId", "==", guestId);
+
       const [directSnapshot, guestSnapshot] = await Promise.all([
         directQuerySimple.get(),
         guestQuerySimple.get()
       ]);
-      
-      console.log(`Fallback queries executed successfully`);
-      
-      // Filter results in memory if date filtering was needed
+
       if (period !== 'all' && filterDate) {
-        console.log(`Applying client-side date filtering for period: ${period}`);
-        
-        const filterDirectDocs = directSnapshot.docs.filter(doc => {
+        const filterDocs = (snapshot) => snapshot.docs.filter(doc => {
           const createdAt = convertFirestoreTimestamp(doc.data().createdAt);
           if (!createdAt) return false;
-          
-          if (endFilterDate) {
-            return createdAt >= filterDate && createdAt <= endFilterDate;
-          } else {
-            return createdAt >= filterDate;
-          }
+          return endFilterDate 
+            ? (createdAt >= filterDate && createdAt <= endFilterDate)
+            : (createdAt >= filterDate);
         });
-        
-        const filterGuestDocs = guestSnapshot.docs.filter(doc => {
-          const createdAt = convertFirestoreTimestamp(doc.data().createdAt);
-          if (!createdAt) return false;
-          
-          if (endFilterDate) {
-            return createdAt >= filterDate && createdAt <= endFilterDate;
-          } else {
-            return createdAt >= filterDate;
-          }
-        });
-        
-        console.log(`Client-side filtering: ${filterDirectDocs.length} direct + ${filterGuestDocs.length} guest transactions`);
-        
-        // Create mock snapshots with filtered docs
+
         return [
-          { docs: filterDirectDocs },
-          { docs: filterGuestDocs }
+          { docs: filterDocs(directSnapshot) },
+          { docs: filterDocs(guestSnapshot) }
         ];
       }
-      
       return [directSnapshot, guestSnapshot];
-      
     } catch (fallbackError) {
-      console.error(`Fallback query also failed:`, fallbackError);
+      console.error(`Fatal fallback error:`, fallbackError);
       throw fallbackError;
     }
   }
@@ -193,6 +203,7 @@ async function createTransaction(req, res) {
 // ENHANCED: getTransactions with QR metadata and improved filtering
 async function getTransactions(req, res) {
   const merchantId = req.user.uid;
+  console.log(`Fetching transactions for merchant: ${merchantId}`);
   const { 
     period = 'all', 
     status, 
@@ -988,6 +999,9 @@ async function getMerchantAllTransactions(req, res) {
     guestMerchantQuery = guestMerchantQuery.limit(parseInt(limit));
 
     // Execute queries with fallback
+    console.log("Testing database connection...");
+const testCol = await db.collection('transactions').limit(1).get();
+console.log("Test Collection exists:", !testCol.empty || testCol.size === 0 ? "Yes" : "No");
     const [realTransactions, guestTransactions] = await executeQueriesWithFallback(
       realMerchantQuery, guestMerchantQuery, period, filterDate, endFilterDate
     );
@@ -1285,7 +1299,7 @@ async function getQRTransactionInsights(req, res) {
   }
 }
 
-module.exports = {
+export  {
   createTransaction,
   getTransactions,
   getTransactionAnalytics,

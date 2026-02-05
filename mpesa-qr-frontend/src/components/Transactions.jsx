@@ -21,15 +21,20 @@ function Transactions({ token, user, onBack }) {
 
     try {
       setError('');
-      const response = await axios.get(`${API_BASE_URL}${API_ENDPOINTS.TRANSACTIONS}`, {
+      const response = await axios.get(`${API_BASE_URL}${API_ENDPOINTS.TRANSACTIONS} ?${params}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
         }
       });
 
       if (response.data.status === 'success') {
+      
         setTransactions(response.data.transactions || []);
+        console.log('Fetched transactions:',Transactions);
+    
+        console.log('Fetched transactions:', response.data.transactions);
       } else {
         setError('Failed to fetch transactions');
       }
@@ -81,25 +86,20 @@ function Transactions({ token, user, onBack }) {
     }).format(amount);
   };
 
-  const formatDate = (timestamp) => {
-    if (!timestamp) return 'N/A';
-    
-    let date;
-    if (timestamp.seconds) {
-      // Firestore timestamp
-      date = new Date(timestamp.seconds * 1000);
-    } else {
-      date = new Date(timestamp);
-    }
+const formatDate = (timestamp) => {
+  if (!timestamp) return 'N/A';
+  
+  // Backend now sends ISO Strings thanks to serializeTransaction
+  const date = new Date(timestamp);
 
-    return date.toLocaleString('en-KE', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+  return date.toLocaleString('en-KE', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
 
   if (!token) {
     return (

@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import Button from './ui/Button';
 import Input from './ui/Input';
 import { AlertCircle, CheckCircle } from 'lucide-react';
+import { API_BASE_URL } from '../utility/constants';
 
 function useQuery() {
   return new URLSearchParams(useLocation().search);
@@ -45,9 +46,9 @@ const PayPrompt = () => {
     }
 
     try {
-      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/daraja/customer-payment`, {
+      const response = await fetch(`${API_BASE_URL}/api/daraja/customer-payment`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
         body: JSON.stringify({
           phoneNumber,
           amount: dynamicAmount ? amount : qrData.amount,

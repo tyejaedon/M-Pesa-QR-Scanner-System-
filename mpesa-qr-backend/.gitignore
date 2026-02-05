@@ -4,6 +4,7 @@ node_modules/
 # Environment variables and secrets
 .env
 src/config/serviceAccountKey.json
+qr-payment-8a0f0-firebase-adminsdk*.json
 
 # Firebase cache
 .firebase/

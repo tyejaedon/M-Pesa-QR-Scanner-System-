@@ -1,30 +1,29 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
-/**
- * PrivateRoute component that restricts access to authenticated users only
- * Redirects to login page if user is not authenticated
- */
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth();
 
-  // Show loading state while checking authentication
+  // 1. Critical: Wait for Firebase and Backend Verification
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-600"></div>
+        <p className="mt-4 text-gray-500">Verifying session...</p>
       </div>
     );
   }
 
-  // Redirect to login if not authenticated
+  // 2. If not logged in, boot them to login
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  // Render children if authenticated
-  return children;
+  // 3. The "Self-Healing" logic:
+  // If you have children (passed manually), render them.
+  // Otherwise, render the Outlet (for nested App.js routes).
+  return children ? children : <Outlet />;
 };
 
 export default PrivateRoute;

@@ -1,9 +1,9 @@
-const express = require("express");
-const router = express.Router();
+import { Router } from "express";
+const router = Router();
 
 // Import your STK push logic here
 // Example: const { triggerSTKPush } = require("../controllers/daraja");
-const { triggerSTKPush } = require("../controllers/daraja");
+import { triggerSTKPush } from "../controllers/daraja.js";
 
 // POST /api/qr-pay
 router.post("/api/qr-pay", async (req, res) => {
@@ -32,4 +32,4 @@ router.post("/api/qr-pay", async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

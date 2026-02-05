@@ -1,6 +1,8 @@
-const express = require('express');
-const router = express.Router();
-const { 
+import express from 'express';
+
+import { Router } from 'express';
+const router = Router();
+import { 
   triggerSTKPush, 
   handleCallback, 
   triggerCustomerPayment,
@@ -8,8 +10,9 @@ const {
   testMpesaConnection,
   testRegister,
   generateMerchantQR
-} = require('../controllers/daraja');
-const { verifyToken } = require('../middlewares/auth');
+} from '../controllers/daraja.js';
+import { verifyToken } from'../middlewares/auth.js';
+
 
 // Health and test endpoints
 router.get('/health', healthCheck);
@@ -34,4 +37,4 @@ router.post('/stk-callback', (req, res, next) => {
     next();
 }, handleCallback);
 
-module.exports = router;
+export default router;

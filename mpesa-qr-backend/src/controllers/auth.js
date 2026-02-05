@@ -1,7 +1,7 @@
-const admin = require("../config/firebase").admin;
-const db = require("../config/firebase").db;
+import { admin } from "../config/firebase.js";
+import { db } from "../config/firebase.js";
 
-async function signUp(req, res) {
+async function createUserwithEmailandPaassword(req, res) {
   console.log('🚀 Backend signUp called with data:', req.body);
   
   const { uid, email, name, phone, shortcode } = req.body;
@@ -97,7 +97,7 @@ async function signUp(req, res) {
   }
 }
 
-async function login(req, res) {
+async function signInwithEmailandPassword(req, res) {
   console.log('Backend login called with data:', req.body);
   
   // Note: Actual login is handled client-side with Firebase Auth SDK.
@@ -235,7 +235,7 @@ async function cleanupIncompleteUser(req, res) {
 }
 
 // Check user status - diagnostic endpoint
-async function checkUserStatus(req, res) {
+ async function checkUserStatus(req, res) {
   const { email } = req.body;
 
   if (!email) {
@@ -408,9 +408,9 @@ async function fixAllIncompleteUsers(req, res) {
   }
 }
 
-module.exports = { 
-  signUp, 
-  login, 
+export  { 
+  createUserwithEmailandPaassword, 
+  signInwithEmailandPassword, 
   fixIncompleteRegistration, 
   cleanupIncompleteUser, 
   checkUserStatus,

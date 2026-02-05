@@ -1,14 +1,12 @@
-require('dotenv').config();
+import dotenv from 'dotenv';
+dotenv.config();
 
-const axios = require('axios');
-const { admin, db } = require('../config/firebase');
-const { getTransactionByCheckoutRequestID } = require('./transactions');
+import axios from 'axios'
+import { admin, db } from '../config/firebase.js';
+import { getTransactionByCheckoutRequestID } from './transactions.js';
 
 // Set base URL depending on environment
-const MPESA_BASE_URL =
-  process.env.NODE_ENV === 'sandbox' || process.env.NODE_ENV === 'development'
-    ? 'https://sandbox.safaricom.co.ke'
-    : 'https://api.safaricom.co.ke';
+const MPESA_BASE_URL =  process.env.MPESA_BASE_URL?.trim().replace(/\/+$/, "") || 'https://sandbox.safaricom.co.ke';
 
 // Helper to check required env vars
 function checkEnvVars() {
@@ -22,15 +20,25 @@ function checkEnvVars() {
 // Generate M-Pesa access token
 async function generateAccessToken() {
   try {
-    checkEnvVars();
+    // 1. Clean the base URL and ensure we use the fresh process.env value
+    const rawBaseUrl = process.env.MPESA_BASE_URL || 'https://sandbox.safaricom.co.ke';
+    const baseUrl = rawBaseUrl.trim().replace(/\/+$/, ""); // Removes any trailing slashes
     
-    const auth = Buffer.from(
-      `${process.env.MPESA_CONSUMER_KEY}:${process.env.MPESA_CONSUMER_SECRET}`
-    ).toString('base64');
+    // 2. Trim keys to remove hidden newlines or spaces from .env
+    const key = process.env.MPESA_CONSUMER_KEY?.trim();
+    const secret = process.env.MPESA_CONSUMER_SECRET?.trim();
 
+    if (!key || !secret) {
+      throw new Error("Missing M-Pesa Consumer Key or Secret");
+    }
+
+    const auth = Buffer.from(`${key}:${secret}`).toString('base64');
+
+    // 3. Explicitly define the path to avoid double-slash issues
     const response = await axios.get(
-      `${MPESA_BASE_URL}/oauth/v1/generate?grant_type=client_credentials`,
+      `${baseUrl}/oauth/v1/generate`,
       {
+        params: { grant_type: 'client_credentials' },
         headers: {
           Authorization: `Basic ${auth}`,
         },
@@ -38,14 +46,14 @@ async function generateAccessToken() {
       }
     );
 
-    console.log('Access token generated successfully');
+    console.log('✅ Access token generated successfully');
     return response.data.access_token;
   } catch (error) {
-    console.error('Access token generation failed:', error.response?.data || error.message);
+    // Log the specific response data from Safaricom to catch the real culprit
+    console.error('❌ Access token generation failed:', error.response?.data || error.message);
     return null;
   }
 }
-
 // Health check endpoint
 async function healthCheck(req, res) {
   try {
@@ -264,7 +272,7 @@ async function triggerCustomerPayment(req, res) {
       PartyA: formattedPhone,
       PartyB: process.env.MPESA_SHORTCODE,
       PhoneNumber: formattedPhone,
-      CallBackURL: `${process.env.SERVER_URL}/daraja/stk-callback`,
+      CallBackURL: `${process.env.SERVER_URL}/api/daraja/stk-callback`,
       AccountReference: `QR-${merchantId}`,
       TransactionDesc: `Payment to ${businessName || 'Merchant'}`
     };
@@ -604,7 +612,7 @@ async function triggerSTKPush(req, res) {
       PartyA: phoneNumber,
       PartyB: process.env.MPESA_SHORTCODE,
       PhoneNumber: phoneNumber,
-      CallBackURL: `${process.env.SERVER_URL}/daraja/stk-callback`,
+      CallBackURL: `${process.env.SERVER_URL}/api/daraja/stk-callback`,
       AccountReference: transactionRef,
       TransactionDesc: description || 'QR Payment',
     };
@@ -813,7 +821,7 @@ async function generateMerchantQR(req, res) {
 
     // Build the QR code URL (for the frontend /pay page)
     // Make sure to set FRONTEND_URL in your .env, e.g. https://your-frontend.com
-    const frontendBaseUrl = process.env.FRONTEND_URL || "http://localhost:3001";
+    const frontendBaseUrl = process.env.FRONTEND_URL || "http://localhost:3000";
     const params = new URLSearchParams(qrData).toString();
     const qrUrl = `${frontendBaseUrl}/pay?${params}`;
 
@@ -841,7 +849,7 @@ async function generateMerchantQR(req, res) {
 }
 
 // COMPLETE EXPORTS - All functions properly exported
-module.exports = { 
+export { 
   // Core M-Pesa functions
   triggerSTKPush, 
   handleCallback, 
