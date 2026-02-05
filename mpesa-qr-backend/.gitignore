@@ -4,8 +4,15 @@ node_modules/
 # Environment variables and secrets
 .env
 src/config/serviceAccountKey.json
-qr-payment-8a0f0-firebase-adminsdk*.json
-qr-payment-adminsdk-*.json
+src/config/qr-payment-8a0f0-firebase-adminsdk*.json
+src/config/qr-payment-adminsdk-*.json
+
+*.json
+!package.json
+!package-lock.json
+.env
+mpesa-qr-backend/src/*.json
+
 
 # Firebase cache
 .firebase/
