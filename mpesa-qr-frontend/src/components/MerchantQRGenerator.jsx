@@ -29,78 +29,134 @@ const MerchantQRGenerator = () => {
   const { user } = useAuth();
 
   // Generate QR data using backend
-  const generateQRData = async () => {
-    setLoading(true);
-    setError('');
-    setSuccess('');
+const generateQRData = async () => {
+  setLoading(true);
+  setError('');
+  setSuccess('');
 
-    try {
-      const token = await user.getIdToken();
-      const response = await fetch(`${API_BASE_URL}/api/daraja/generate-qr`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          'ngrok-skip-browser-warning': 'true'
-        },
-        body: JSON.stringify({
-          dynamicAmount: true,
-          description: description || 'Payment',
-          reference: reference || undefined,
-          businessName: businessName || undefined
-        })
-      });
+  try {
+    const token = await user.getIdToken();
+    
+    // Construct the Deep Link URL for the QR code
+    // If you have a specific price (fixed amount), we append it as a query param
+    const baseUrl = window.location.origin;
+    const menuPath = `/public/menu/${user.uid}`;
+    // Support for potential fixed-price items in the future:
+    const priceParam = amount ? `?amount=${amount}` : ''; 
+    const deepLinkUrl = `${baseUrl}${menuPath}${priceParam}`;
 
-      // Log the raw response for debugging
-      const text = await response.text();
-      let result;
-      try {
-        result = JSON.parse(text);
-      } catch (parseErr) {
-        console.error('Failed to parse backend response as JSON:', text);
-        setError('Invalid response from server. Please contact support.');
-        setLoading(false);
-        return;
-      }
-      console.log('Backend response:', result);
+    const response = await fetch(`${API_BASE_URL}/api/daraja/generate-qr`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        'ngrok-skip-browser-warning': 'true'
+      },
+      body: JSON.stringify({
+        // 1. M-Pesa Standard Fields
+        dynamicAmount: !amount, // If no price is set, it's dynamic
+        description: description || 'Payment',
+        reference: reference || 'MENU-PAY',
+        businessName: businessName || 'Merchant',
+        
+        // 2. The Secret Sauce: The Deep Link URL
+        // This tells the backend to encode a URL instead of just JSON
+        qrUrl: deepLinkUrl 
+      })
+    });
 
-      if (response.ok && result.success) {
-        setQrData(result.data);
+    const result = await response.json(); // Use json() directly for cleaner code
 
-        // Use qrUrl from backend as the QR code value
-        if (
-          !result.data ||
-          !result.data.qrUrl ||
-          typeof result.data.qrUrl !== 'string' ||
-          result.data.qrUrl.trim() === ''
-        ) {
-          console.error('Invalid qrUrl received from backend:', result.data);
-          setError('QR code data is missing or invalid from server.');
-          setLoading(false);
-          return;
-        }
+    if (response.ok && result.success) {
+      // Store the full response for legacy/state tracking
+      setQrData(result.data);
 
+      // result.data.qrUrl is now our deepLinkUrl processed by Safaricom/Backend
+      if (result.data?.qrUrl) {
         try {
+          // Generate the visual QR image
           const qrImageUrl = await generateQRCodeImage(result.data.qrUrl, '400x400');
           setQrCodeUrl(qrImageUrl);
+          setSuccess('Dynamic QR Code with Menu Link generated! Scan to test.');
         } catch (imgErr) {
-          console.error('Error generating QR code image:', imgErr, 'qrUrl:', result.data.qrUrl);
-          setError('QR code generated but failed to render image. (Invalid QR data)');
-          return;
+          throw new Error('Failed to render the QR image.');
         }
-        setSuccess('Dynamic M-Pesa QR Code generated successfully! Customers will be prompted to enter the amount.');
-      } else {
-        // Show backend error if available
-        setError(result.message || result.error || 'Failed to generate QR code');
       }
-    } catch (err) {
-      console.error('QR Generation Error:', err);
-      setError('Failed to generate QR code. Please try again.');
-    } finally {
-      setLoading(false);
+    } else {
+      setError(result.message || 'Failed to generate QR code');
     }
-  };
+  } catch (err) {
+    console.error('QR Generation Error:', err);
+    setError(err.message || 'Failed to connect to the server.');
+  } finally {
+    setLoading(false);
+  }
+};
 
+  const generateMenuQR = async () => {
+  setLoading(true);
+  setError('');
+  setSuccess('');
+
+  try {
+    const token = await user.getIdToken();
+    
+    // We point the QR directly to the Public Menu Route
+    // This allows the scanner to 'siphon' the merchantId from the URL
+    const publicMenuUrl = `${window.location.origin}/public/menu/${user.uid}`;
+
+    const response = await fetch(`${API_BASE_URL}/api/daraja/generate-qr`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        'ngrok-skip-browser-warning': 'true'
+      },
+      body: JSON.stringify({
+        dynamicAmount: true, // Menu items have different prices
+        description: `Menu for ${businessName || 'Merchant'}`,
+        qrUrl: publicMenuUrl, // The Deep Link
+        merchantId: user.uid
+      })
+    });
+
+    // 1. Network/HTTP Level Error Handling
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Server responded with ${response.status}`);
+    }
+
+    const result = await response.json();
+
+    // 2. Data Integrity Handling
+    if (result.success && result.data?.qrUrl) {
+      setQrData(result.data);
+      
+      try {
+        const qrImageUrl = await generateQRCodeImage(result.data.qrUrl, '400x400');
+        setQrCodeUrl(qrImageUrl);
+        setSuccess('Digital Menu QR Code generated! Customers can now scan to view your items.');
+      } catch (imgErr) {
+        throw new Error('QR data received, but failed to render the image. Please try again.');
+      }
+    } else {
+      throw new Error(result.message || 'The server failed to return a valid QR URL.');
+    }
+
+  } catch (err) {
+    // 3. User-Friendly Error Categorization
+    console.error('Menu QR Error:', err);
+    if (err.message.includes('401')) {
+        setError('Your session has expired. Please log in again.');
+    } else if (err.message.includes('Failed to fetch')) {
+        setError('Network Error: Check if your backend/ngrok is running.');
+    } else {
+        setError(err.message || 'An unexpected error occurred during generation.');
+    }
+  } finally {
+    setLoading(false);
+  }
+};
   // Generate QR code image from data
   const generateQRCodeImage = async (data, size = '300x300') => {
     try {

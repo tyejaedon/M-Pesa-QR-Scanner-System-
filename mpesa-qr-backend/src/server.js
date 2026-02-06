@@ -13,14 +13,21 @@ import authRoutes from './routes/auth.js';
 import darajaRoutes from './routes/daraja.js';
 import transactionRoutes from './routes/transactions.js';
 import qrPayRouter from './routes/qrPay.js';
+import menuRoutes from './routes/menu.js'; 
 
 app.use(qrPayRouter);
 
 // Enhanced CORS configuration
 app.use(cors({
-  origin: 'http://localhost:3000',
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+  origin: '*', // Allow all origins for mobile testing
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'ngrok-skip-browser-warning',
+    'Accept'
+  ],
+  credentials: true
 }));
 
 // Middleware
@@ -41,11 +48,13 @@ app.use((req, res, next) => {
 app.use('/api/auth', authRoutes);          // Authentication routes
 app.use('/api/daraja', darajaRoutes);      // M-Pesa routes  
 app.use('/api/transactions', transactionRoutes); // Transaction routes
+app.use('/api/menu', menuRoutes);         // Menu management routes
 
 // Legacy routes for backwards compatibility
 app.use('/auth', authRoutes);
 app.use('/daraja', darajaRoutes);
 app.use('/transactions', transactionRoutes);
+
 app.get('/', (req, res) => {
   res.json({ 
     message: 'M-Pesa QR Backend API',

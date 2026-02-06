@@ -1,13 +1,13 @@
 // API Configuration - Support both local and ngrok
 const useNgrok = process.env.REACT_APP_USE_NGROK === 'true';
 const ngrokUrl = process.env.REACT_APP_API_URL?.replace(/\/$/, ""); 
-const localUrl = 'http://localhost:5000';
+const localUrl = 'http://10.39.202.82:5000';
 
 
 // Use the ngrok URL if enabled, otherwise stick to localhost
 
 // IMPORTANT: Ensure your backend uses the /api prefix consistently
-export const API_BASE_URL = (useNgrok && ngrokUrl) ? ngrokUrl : localUrl;
+export const API_BASE_URL = localUrl;
 // Payment Status Constants
 export const STATUS = {
   PENDING: 'pending',

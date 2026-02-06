@@ -80,35 +80,55 @@ const PublicQRScanner = () => {
     setScanning(false);
   };
 
-  const onScanSuccess = (decodedText) => {
-    console.log('QR Code detected:', decodedText);
-    stopScanner();
-    
+const onScanSuccess = (decodedText) => {
+  console.log('QR Code detected:', decodedText);
+  stopScanner();
+  
+  // 1. DYNAMIC URL DETECTION (The Migration Path)
+  if (decodedText.startsWith('http')) {
     try {
-      // Parse the QR data
-      const parsedData = JSON.parse(decodedText);
-      setQrData(parsedData);
+      const url = new URL(decodedText);
+      const pathSegments = url.pathname.split('/');
       
-      // Auto-extract phone number if available (for development)
-      if (process.env.NODE_ENV === 'development' && process.env.REACT_APP_TEST_PHONE) {
-        setPhoneNumber(process.env.REACT_APP_TEST_PHONE);
+      // Siphon the merchantId from the URL (assuming /public/menu/:merchantId)
+      const scannedMerchantId = pathSegments[pathSegments.length - 1];
+      
+      // Siphon price if passed as a query param (e.g., ?amount=500)
+      const amountParam = url.searchParams.get('amount');
+
+      if (scannedMerchantId) {
+        // Option A: Redirect to the Menu Module
+        window.location.href = `${decodedText}${amountParam ? '' : ''}`;
+        return; 
       }
-      
-      // Check if this is a dynamic amount QR code (customer enters amount)
-      if (parsedData.dynamicAmount) {
-        // Clear amount field to ensure customer enters it
-        setAmount('');
-      } else if (parsedData.amount) {
-        // If not a dynamic QR code and has a fixed amount, set it
-        setAmount(parsedData.amount.toString());
-      }
-      
-    } catch (err) {
-      console.error('Error parsing QR data:', err);
-      setError('Invalid QR code format. Please scan a valid M-Pesa QR code.');
-      setQrData(null);
+    } catch (e) {
+      console.error('URL parsing failed, falling back to JSON check', e);
     }
-  };
+  }
+
+  // 2. LEGACY JSON PARSING (The Backward Compatibility Path)
+  try {
+    const parsedData = JSON.parse(decodedText);
+    setQrData(parsedData);
+    
+    // Auto-extract phone number for dev
+    if (process.env.NODE_ENV === 'development' && process.env.REACT_APP_TEST_PHONE) {
+      setPhoneNumber(process.env.REACT_APP_TEST_PHONE);
+    }
+    
+    // Handle Dynamic vs Fixed Amount in JSON
+    if (parsedData.dynamicAmount) {
+      setAmount(''); // Customer must enter amount
+    } else if (parsedData.amount) {
+      setAmount(parsedData.amount.toString()); // Use the fixed price passed in JSON
+    }
+    
+  } catch (err) {
+    console.error('Error parsing QR data:', err);
+    setError('Invalid QR code format. Please scan a valid M-Pesa QR code.');
+    setQrData(null);
+  }
+};
 
   const onScanFailure = (error) => {
     // We don't need to do anything here, this is called when a frame doesn't contain a QR code

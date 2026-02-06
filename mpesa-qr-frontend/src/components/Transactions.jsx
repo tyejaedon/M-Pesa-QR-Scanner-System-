@@ -129,178 +129,211 @@ const formatDate = (timestamp) => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-blue-600 text-white p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {onBack && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={onBack}
-                className="text-white hover:bg-blue-700"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </Button>
-            )}
-            <div>
-              <h1 className="font-semibold">Transaction History</h1>
-              <p className="text-sm text-blue-100">
-                {user?.email || 'Merchant Dashboard'}
-              </p>
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      {/* Premium Sticky Header */}
+      <div className="bg-blue-600 text-white sticky top-0 z-30 shadow-md">
+        <div className="px-4 py-4 md:px-6">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 overflow-hidden">
+              {onBack && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={onBack}
+                  className="text-white hover:bg-blue-700 h-10 w-10 shrink-0 active:scale-90 transition-transform"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </Button>
+              )}
+              <div className="truncate">
+                <h1 className="font-black text-lg md:text-xl truncate tracking-tight leading-none">Activity Log</h1>
+                <p className="text-[10px] md:text-xs text-blue-100 truncate opacity-80 mt-1 uppercase font-bold tracking-widest">
+                  {user?.email || 'Merchant Services'}
+                </p>
+              </div>
             </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="text-white hover:bg-blue-700 h-10 w-10 shrink-0"
+            >
+              <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
+            </Button>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="text-white hover:bg-blue-700"
-          >
-            <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
-          </Button>
         </div>
       </div>
 
-      <div className="container mx-auto p-4">
+      <div className="flex-1 p-4 md:p-6 max-w-4xl mx-auto w-full space-y-6">
         {loading ? (
-          <Card>
-            <CardContent className="p-8">
-              <div className="text-center">
-                <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
-                <p>Loading transactions...</p>
-              </div>
+          <Card className="border-none shadow-sm">
+            <CardContent className="p-20 text-center">
+              <RefreshCw className="w-10 h-10 animate-spin mx-auto mb-4 text-blue-600 opacity-30" />
+              <p className="text-slate-400 font-bold text-sm tracking-widest uppercase">Syncing Ledger...</p>
             </CardContent>
           </Card>
         ) : error ? (
-          <Card className="border-red-500">
-            <CardContent className="p-4">
-              <div className="text-center">
-                <p className="text-red-600 mb-4">{error}</p>
-                <Button onClick={handleRefresh} variant="outline">
-                  Try Again
-                </Button>
-              </div>
+          <Card className="border-rose-100 bg-rose-50 border-2 shadow-none">
+            <CardContent className="p-8 text-center">
+              <AlertCircle className="w-12 h-12 text-rose-500 mx-auto mb-3" />
+              <h3 className="font-black text-rose-900 mb-1">Connection Error</h3>
+              <p className="text-rose-700 text-sm mb-6 opacity-80">{error}</p>
+              <Button onClick={handleRefresh} variant="outline" className="bg-white border-rose-200 text-rose-700 hover:bg-rose-100 font-bold px-8 rounded-xl shadow-sm">
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Retry Sync
+              </Button>
             </CardContent>
           </Card>
         ) : transactions.length === 0 ? (
-          <Card>
-            <CardContent className="p-8">
-              <div className="text-center">
-                <Calendar className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-600 mb-2">No Transactions Yet</h3>
-                <p className="text-gray-500">Your payment transactions will appear here once you start processing payments.</p>
+          <Card className="border-none shadow-sm bg-white rounded-[32px]">
+            <CardContent className="p-20 text-center">
+              <div className="bg-slate-50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 border-4 border-white shadow-inner">
+                <CreditCard className="w-10 h-10 text-slate-300" />
               </div>
+              <h3 className="text-2xl font-black text-slate-800 mb-2">No Transactions</h3>
+              <p className="text-slate-500 text-sm max-w-[240px] mx-auto leading-relaxed">
+                As soon as a customer pays via your QR code, the receipt will appear here.
+              </p>
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-4">
-            {/* Summary Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <DollarSign className="w-5 h-5" />
-                  Transaction Summary
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-green-600">
-                      {transactions.filter(t => t.status === STATUS.SUCCESS).length}
-                    </p>
-                    <p className="text-sm text-gray-600">Successful</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-yellow-600">
-                      {transactions.filter(t => t.status === STATUS.PENDING).length}
-                    </p>
-                    <p className="text-sm text-gray-600">Pending</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-red-600">
-                      {transactions.filter(t => [STATUS.FAILED, STATUS.ERROR].includes(t.status)).length}
-                    </p>
-                    <p className="text-sm text-gray-600">Failed</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-blue-600">
-                      {formatCurrency(
-                        transactions
-                          .filter(t => t.status === STATUS.SUCCESS)
-                          .reduce((sum, t) => sum + (t.amount || 0), 0)
-                      )}
-                    </p>
-                    <p className="text-sm text-gray-600">Total Revenue</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+          <div className="space-y-6">
+            {/* Analytics Summary - Stays clean on small screens */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <Card className="border-none shadow-sm bg-white border-l-4 border-green-500 rounded-2xl">
+                <CardContent className="p-4">
+                  <p className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1">Successful</p>
+                  <p className="text-2xl font-black text-slate-900 leading-none">
+                    {transactions.filter(t => t.status === SUCCESS_STATUS).length}
+                  </p>
+                </CardContent>
+              </Card>
+              <Card className="border-none shadow-sm bg-white border-l-4 border-amber-400 rounded-2xl">
+                <CardContent className="p-4">
+                  <p className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1">Pending</p>
+                  <p className="text-2xl font-black text-slate-900 leading-none">
+                    {transactions.filter(t => t.status === PENDING_STATUS).length}
+                  </p>
+                </CardContent>
+              </Card>
+              <Card className="border-none shadow-sm bg-white border-l-4 border-rose-500 rounded-2xl">
+                <CardContent className="p-4">
+                  <p className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1">Failed</p>
+                  <p className="text-2xl font-black text-slate-900 leading-none">
+                    {transactions.filter(t => FAILED_STATUS.includes(t.status)).length}
+                  </p>
+                </CardContent>
+              </Card>
+              <Card className="border-none shadow-sm bg-blue-600 text-white rounded-2xl col-span-2 lg:col-span-1">
+                <CardContent className="p-4">
+                  <p className="text-[10px] uppercase font-black text-blue-200 tracking-widest mb-1">Total Revenue</p>
+                  <p className="text-2xl font-black leading-none">
+                    {formatCurrency(
+                      transactions
+                        .filter(t => t.status === SUCCESS_STATUS)
+                        .reduce((sum, t) => sum + (Number(t.amount) || 0), 0)
+                    )}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
 
-            {/* Transactions List */}
+            {/* List Header */}
+            <div className="flex items-center justify-between px-1">
+              <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Detailed History</h3>
+              <div className="h-[1px] flex-grow bg-slate-200 mx-4 opacity-50 hidden sm:block"></div>
+              <Badge variant="outline" className="bg-white text-slate-500 border-slate-200 text-[10px] font-bold">
+                {transactions.length} Records
+              </Badge>
+            </div>
+
+            {/* Transactions Feed */}
             <div className="space-y-3">
               {transactions.map((transaction) => (
-                <Card key={transaction.id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <div className="flex items-center gap-2">
-                            <Phone className="w-4 h-4 text-gray-500" />
-                            <span className="font-medium">
-                              {transaction.phoneNumber || 'N/A'}
-                            </span>
+                <Card 
+                  key={transaction.id} 
+                  className="border-none shadow-sm hover:shadow-md transition-all active:scale-[0.98] group overflow-hidden bg-white rounded-[24px]"
+                >
+                  <CardContent className="p-0">
+                    <div className="flex items-stretch">
+                      {/* Vertical Indicator Bar */}
+                      <div className={`w-1.5 shrink-0 ${
+                        transaction.status === SUCCESS_STATUS ? 'bg-green-500' : 
+                        transaction.status === PENDING_STATUS ? 'bg-amber-400' : 'bg-rose-500'
+                      }`} />
+                      
+                      <div className="flex-1 p-4 md:p-5">
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="bg-slate-50 p-3 rounded-[16px] border border-slate-100 group-hover:bg-blue-50 transition-colors">
+                              <Phone className="w-5 h-5 text-slate-400 group-hover:text-blue-500" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-black text-slate-900 text-base md:text-lg truncate leading-tight">
+                                {transaction.phoneNumber || 'Guest Order'}
+                              </p>
+                              <div className="scale-90 origin-left -ml-1 mt-1">
+                                {getStatusBadge(transaction.status)}
+                              </div>
+                            </div>
                           </div>
-                          {getStatusBadge(transaction.status)}
+                          <div className="text-right shrink-0">
+                            <p className="font-black text-slate-900 text-lg md:text-xl leading-none">
+                              {formatCurrency(transaction.amount || 0)}
+                            </p>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter mt-1">
+                              {transaction.description || 'Merchant Pay'}
+                            </p>
+                          </div>
                         </div>
                         
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-gray-600">
-                          <div>
-                            <span className="font-medium">Amount: </span>
-                            <span className="text-green-600 font-semibold">
-                              {formatCurrency(transaction.amount || 0)}
+                        {/* Information Grid */}
+                        <div className="grid grid-cols-2 gap-y-3 gap-x-4 pt-3 border-t border-slate-50">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[9px] uppercase font-black text-slate-400 tracking-widest flex items-center gap-1">
+                              <Hash className="w-2.5 h-2.5" /> Reference
+                            </span>
+                            <span className="text-xs font-mono font-bold text-slate-600 bg-slate-50 px-1.5 py-0.5 rounded truncate">
+                              {transaction.transactionRef || transaction.id?.substring(0, 12)}
                             </span>
                           </div>
-                          <div>
-                            <span className="font-medium">Ref: </span>
-                            <span className="font-mono text-xs">
-                              {transaction.transactionRef || transaction.id}
+                          <div className="flex flex-col gap-0.5 items-end">
+                            <span className="text-[9px] uppercase font-black text-slate-400 tracking-widest flex items-center gap-1 justify-end">
+                              <Calendar className="w-2.5 h-2.5" /> Timestamp
                             </span>
-                          </div>
-                          <div>
-                            <span className="font-medium">Date: </span>
-                            <span>{formatDate(transaction.createdAt)}</span>
-                          </div>
-                          <div>
-                            <span className="font-medium">Description: </span>
-                            <span>{transaction.description || 'QR Payment'}</span>
+                            <span className="text-xs font-bold text-slate-600">
+                              {formatDate(transaction.createdAt)}
+                            </span>
                           </div>
                         </div>
 
-                        {/* Additional details for successful payments */}
-                        {transaction.status === STATUS.SUCCESS && transaction.paymentDetails && (
-                          <div className="mt-2 text-xs text-gray-500">
-                            <span className="font-medium">M-Pesa Receipt: </span>
-                            <span className="font-mono">
-                              {transaction.paymentDetails.mpesaReceiptNumber}
-                            </span>
+                        {/* Success Specific - Receipt Row */}
+                        {transaction.status === SUCCESS_STATUS && transaction.paymentDetails?.mpesaReceiptNumber && (
+                          <div className="mt-4 flex items-center justify-between bg-green-50/50 p-3 rounded-xl border border-green-100/50">
+                            <div className="flex items-center gap-2">
+                              <div className="bg-green-500 p-1 rounded-full">
+                                <CheckCircle className="w-3 h-3 text-white" />
+                              </div>
+                              <span className="text-[11px] font-black text-green-700 tracking-tight">
+                                RECEIPT: {transaction.paymentDetails.mpesaReceiptNumber}
+                              </span>
+                            </div>
+                            <Button variant="ghost" size="sm" className="h-7 text-[10px] font-black text-green-600 hover:bg-green-100 uppercase tracking-widest">
+                              Details
+                            </Button>
                           </div>
                         )}
 
-                        {/* Error message for failed transactions */}
-                        {(transaction.status === STATUS.FAILED || transaction.status === STATUS.ERROR) && transaction.error && (
-                          <div className="mt-2 text-xs text-red-600">
-                            <span className="font-medium">Error: </span>
-                            <span>{transaction.error}</span>
+                        {/* Error Context Block */}
+                        {FAILED_STATUS.includes(transaction.status) && transaction.error && (
+                          <div className="mt-4 p-3 bg-rose-50 rounded-xl border border-rose-100 flex items-start gap-2">
+                            <XCircle className="w-3 h-3 text-rose-500 mt-0.5 shrink-0" />
+                            <span className="text-[11px] font-bold text-rose-700 leading-relaxed italic">
+                              "{transaction.error}"
+                            </span>
                           </div>
                         )}
-                      </div>
-                      
-                      <div className="ml-4">
-                        <Button variant="ghost" size="sm">
-                          <Eye className="w-4 h-4" />
-                        </Button>
                       </div>
                     </div>
                   </CardContent>

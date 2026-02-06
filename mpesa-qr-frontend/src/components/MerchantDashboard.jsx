@@ -32,12 +32,14 @@ import {
   CreditCard,
   Smartphone,
   Settings,
+  UtensilsCrossed,
   Plus
 } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE_URL } from '../utility/constants';
 import { useAuth } from '../hooks/useAuth';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import MenuModule from './MenuModule';
 
 const MerchantDashboard = () => {
   const { user, merchantData, logout } = useAuth();
@@ -58,22 +60,22 @@ const MerchantDashboard = () => {
     return `KSH ${parseFloat(amount || 0).toFixed(2)}`;
   };
 
-const formatDate = (dateString) => {
-  if (!dateString) return 'N/A';
-  try {
-    const date = new Date(dateString); // Backend sends ISO strings
-    return date.toLocaleDateString('en-KE', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  } catch (error) {
-    console.error("Format error:", error);
-    return 'Invalid Date';
-  }
-};
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+      const date = new Date(dateString); // Backend sends ISO strings
+      return date.toLocaleDateString('en-KE', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (error) {
+      console.error("Format error:", error);
+      return 'Invalid Date';
+    }
+  };
 
   const getStatusBadge = (status) => {
     const variants = {
@@ -118,69 +120,69 @@ const formatDate = (dateString) => {
     URL.revokeObjectURL(url);
   };
 
-const fetchAnalytics = async () => {
-  const token = localStorage.getItem('authToken');
-  if (!token) {
-    setError('Authentication required. Please login.');
-    return;
-  }
-
-  setLoading(true);
-  setError('');
-
-  try {
-    // 1. Defensively handle the 'status' and 'period' values to avoid "undefined" strings
-    const currentStatus = status || 'all';
-    const currentPeriod = period || 'week';
-
-    const params = new URLSearchParams({
-      period: currentPeriod,
-      status: currentStatus,
-      includeQRMetrics: 'true',
-      limit: '100'
-    });
-
-    // 2. Ensure the URL includes the /api prefix and uses the centralized base URL
-    // Your backend routes in daraja.js and transactions.js use the /api prefix
-    const response = await axios.get(
-      `${API_BASE_URL}/api/transactions/analytics?${params}`, 
-      {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'true' // Vital for bypassing the ngrok landing page
-        }
-      }
-    );
-
-    console.log('Raw API Response:', response.data);
-
-    // 3. Drill down into the 'analytics' object provided by getTransactionAnalytics
-    if (response.data.status === 'success' && response.data.analytics) {
-      const analyticsData = response.data.analytics;
-      
-      console.log('Processed Analytics Data:', analyticsData);
-      
-      setAnalytics(analyticsData);
-      // Backend returns transactions inside the analytics object
-      setTransactions(analyticsData.transactions || []);
-      
-      if ((analyticsData.transactions || []).length === 0) {
-        console.log('No transactions found for this period/filter.');
-      }
-    } else {
-      setError('No analytics data found.');
-      setTransactions([]);
+  const fetchAnalytics = async () => {
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      setError('Authentication required. Please login.');
+      return;
     }
-  } catch (err) {
-    console.error('Analytics fetch error:', err);
-    // Standardize error messaging based on backend response
-    const errorMessage = err.response?.data?.error || 'Failed to fetch analytics data';
-    setError(errorMessage);
-  } finally {
-    setLoading(false);
-  }
-};
+
+    setLoading(true);
+    setError('');
+
+    try {
+      // 1. Defensively handle the 'status' and 'period' values to avoid "undefined" strings
+      const currentStatus = status || 'all';
+      const currentPeriod = period || 'week';
+
+      const params = new URLSearchParams({
+        period: currentPeriod,
+        status: currentStatus,
+        includeQRMetrics: 'true',
+        limit: '100'
+      });
+
+      // 2. Ensure the URL includes the /api prefix and uses the centralized base URL
+      // Your backend routes in daraja.js and transactions.js use the /api prefix
+      const response = await axios.get(
+        `${API_BASE_URL}/api/transactions/analytics?${params}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'ngrok-skip-browser-warning': 'true' // Vital for bypassing the ngrok landing page
+          }
+        }
+      );
+
+      console.log('Raw API Response:', response.data);
+
+      // 3. Drill down into the 'analytics' object provided by getTransactionAnalytics
+      if (response.data.status === 'success' && response.data.analytics) {
+        const analyticsData = response.data.analytics;
+
+        console.log('Processed Analytics Data:', analyticsData);
+
+        setAnalytics(analyticsData);
+        // Backend returns transactions inside the analytics object
+        setTransactions(analyticsData.transactions || []);
+
+        if ((analyticsData.transactions || []).length === 0) {
+          console.log('No transactions found for this period/filter.');
+        }
+      } else {
+        setError('No analytics data found.');
+        setTransactions([]);
+      }
+    } catch (err) {
+      console.error('Analytics fetch error:', err);
+      // Standardize error messaging based on backend response
+      const errorMessage = err.response?.data?.error || 'Failed to fetch analytics data';
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchDebugInfo = async () => {
     const token = localStorage.getItem('authToken');
@@ -256,93 +258,78 @@ const fetchAnalytics = async () => {
   };
 
   // Add dailyData for chart
-const dailyData = analytics?.dailySummaries?.map(day => ({
-  date: day.dateFormatted,
-  revenue: day.totalRevenue, // Matches backend key
-  successful: day.successful,
-  failed: day.failed,
-  pending: day.pending,
-})) || [];
+  const dailyData = analytics?.dailySummaries?.map(day => ({
+    date: day.dateFormatted,
+    revenue: day.totalRevenue, // Matches backend key
+    successful: day.successful,
+    failed: day.failed,
+    pending: day.pending,
+  })) || [];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      {/* Modern Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="bg-blue-600 p-2 rounded-lg">
-                <BarChart3 className="w-6 h-6 text-white" />
+    <div className="min-h-screen bg-slate-50/50">
+      {/* Modern Header - Mobile Optimized */}
+      <div className="bg-white shadow-sm border-b sticky top-0 z-30">
+        <div className="px-4 py-3 md:px-6 md:py-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-3 overflow-hidden">
+              <div className="bg-blue-600 p-2 rounded-lg shrink-0">
+                <BarChart3 className="w-5 h-5 md:w-6 md:h-6 text-white" />
               </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Merchant Dashboard</h1>
-                <p className="text-gray-600">Welcome back, {merchantData?.name || user?.displayName || 'Merchant'}</p>
+              <div className="truncate">
+                <h1 className="text-lg md:text-2xl font-bold text-gray-900 truncate leading-tight">Merchant</h1>
+                <p className="text-xs md:text-sm text-gray-500 truncate">
+                  {merchantData?.name || user?.displayName || 'Dashboard'}
+                </p>
               </div>
             </div>
 
-            {/* Header Actions */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <Button
                 onClick={handleRefresh}
                 variant="outline"
                 size="sm"
                 disabled={loading}
-                className="flex items-center gap-2"
+                className="h-9 px-2 md:px-3"
               >
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                Refresh
+                <span className="hidden md:inline ml-2 text-xs">Sync</span>
               </Button>
 
-              {/* Navigation Menu */}
               <div className="relative">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setShowNavMenu(!showNavMenu)}
-                  className="flex items-center gap-2"
+                  className="h-9 px-2 md:px-3"
                 >
                   <Menu className="w-4 h-4" />
-                  Menu
+                  <span className="hidden md:inline ml-2 text-xs">Menu</span>
                 </Button>
 
                 {showNavMenu && (
-                  <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-lg shadow-lg py-2 z-50 border">
-                    {/* QR Generator Option */}
+                  <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-xl shadow-xl py-2 z-50 border border-slate-200">
                     <button
-                      onClick={() => {
-                        setShowNavMenu(false);
-                        handleNavigateToQRGenerator();
-                      }}
-                      className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
+                      onClick={() => { setShowNavMenu(false); handleNavigateToQRGenerator(); }}
+                      className="w-full px-4 py-3 text-left text-gray-700 hover:bg-slate-50 flex items-center gap-3 transition-colors"
                     >
-                      <QrCode className="w-4 h-4" />
-                      Generate QR Code
+                      <QrCode className="w-5 h-5 text-slate-500" />
+                      <span className="font-medium">Generate QR Code</span>
                     </button>
-
-                    {/* QR Scanner Option */}
                     <button
-                      onClick={() => {
-                        setShowNavMenu(false);
-                        handleNavigateToScanner();
-                      }}
-                      className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
+                      onClick={() => { setShowNavMenu(false); handleNavigateToScanner(); }}
+                      className="w-full px-4 py-3 text-left text-gray-700 hover:bg-slate-50 flex items-center gap-3 transition-colors"
                     >
-                      <Smartphone className="w-4 h-4" />
-                      QR Scanner
+                      <Smartphone className="w-5 h-5 text-slate-500" />
+                      <span className="font-medium">QR Scanner</span>
                     </button>
-
-                    <hr className="my-2" />
-
-                    {/* Logout Option */}
+                    <div className="my-1 border-t border-slate-100" />
                     <button
-                      onClick={() => {
-                        setShowNavMenu(false);
-                        handleLogout();
-                      }}
-                      className="w-full px-4 py-2 text-left text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors"
+                      onClick={() => { setShowNavMenu(false); handleLogout(); }}
+                      className="w-full px-4 py-3 text-left text-red-600 hover:bg-red-50 flex items-center gap-3 transition-colors"
                     >
-                      <LogOut className="w-4 h-4" />
-                      Logout
+                      <LogOut className="w-5 h-5" />
+                      <span className="font-medium">Logout</span>
                     </button>
                   </div>
                 )}
@@ -351,516 +338,192 @@ const dailyData = analytics?.dailySummaries?.map(day => ({
           </div>
 
           {/* Filter Controls */}
-          <div className="flex flex-wrap items-center gap-4 mt-4 p-4 bg-gray-50 rounded-lg">
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-gray-600" />
-              <select
-                value={period}
-                onChange={(e) => setPeriod(e.target.value)}
-                className="bg-white border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="today">Today</option>
-                <option value="week">This Week</option>
-                <option value="month">This Month</option>
-                <option value="all">All Time</option>
-              </select>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mt-4">
+            <div className="grid grid-cols-2 gap-2 flex-1">
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <select
+                  value={period}
+                  onChange={(e) => setPeriod(e.target.value)}
+                  className="w-full bg-white border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 appearance-none"
+                >
+                  <option value="today">Today</option>
+                  <option value="week">Week</option>
+                  <option value="month">Month</option>
+                  <option value="all">Total</option>
+                </select>
+              </div>
+
+              <div className="relative">
+                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                  className="w-full bg-white border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 appearance-none"
+                >
+                  <option value="all">Status</option>
+                  <option value="success">Success</option>
+                  <option value="pending">Wait</option>
+                  <option value="failed">Fail</option>
+                </select>
+              </div>
             </div>
 
             <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-gray-600" />
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                className="bg-white border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">All Status</option>
-                <option value="success">Successful</option>
-                <option value="pending">Pending</option>
-                <option value="failed">Failed</option>
-              </select>
-            </div>
-
-            <div className="flex items-center gap-2 ml-auto">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={downloadCSV}
-                disabled={!analytics?.transactions?.length}
-                className="flex items-center gap-2"
+                className="flex-1 sm:flex-none justify-center gap-2 h-10"
               >
                 <Download className="w-4 h-4" />
-                Export CSV
+                <span>Export</span>
               </Button>
 
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
                 onClick={() => setShowDebug(!showDebug)}
-                className="flex items-center gap-2"
+                className="flex-1 sm:flex-none justify-center gap-2 text-gray-500 h-10"
               >
                 {showDebug ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                {showDebug ? 'Hide' : 'Show'} Debug
+                <span className="sm:hidden">Debug</span>
               </Button>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="px-6 py-6 space-y-6">
-        {/* Error Display */}
+      <div className="px-4 py-4 md:px-6 md:py-6 space-y-4 md:space-y-6 pb-24">
+        {/* Error/Loading */}
         {error && (
-          <Card className="border-red-200 bg-red-50">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-5 h-5 text-red-600" />
-                <p className="text-red-700">{error}</p>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="bg-red-50 border border-red-100 rounded-xl p-4 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+            <p className="text-sm text-red-700 leading-tight">{error}</p>
+          </div>
         )}
 
-        {/* Loading State */}
-        {loading && (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
-              <p className="text-gray-600">Loading analytics...</p>
+        {/* Stats Grid - 2 Col on Mobile */}
+        {/* We use !bg- classes and !border-none to override hardcoded values in the Card module */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
+          <Card className="!bg-green-600 !text-white !border-none shadow-md relative overflow-hidden">
+            <CardContent className="p-4 md:p-6">
+              <p className="text-white/90 text-[10px] uppercase font-bold tracking-widest mb-1">Income</p>
+              <div className="text-lg md:text-3xl font-black text-white">{formatCurrency(stats.totalRevenue)}</div>
+              <p className="text-white/80 text-[10px] mt-1 truncate font-medium">{stats.totalTransactions} Orders</p>
             </CardContent>
-          </Card>
-        )}
-
-        {/* Main Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card className="bg-gradient-to-r from-green-500 to-green-600 text-white">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-green-100 text-sm font-medium">Total Revenue</p>
-                  <div className="text-3xl font-bold">{formatCurrency(stats.totalRevenue)}</div>
-                  <p className="text-green-100 text-xs mt-1">
-                    From {stats.totalTransactions} transactions
-                  </p>
-                </div>
-                <DollarSign className="h-10 w-10 text-green-100" />
-              </div>
-            </CardContent>
+            <DollarSign className="absolute -right-3 -bottom-3 h-16 w-16 text-white/10 rotate-12" />
           </Card>
 
-          <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-blue-100 text-sm font-medium">Success Rate</p>
-                  <div className="text-3xl font-bold">{stats.successRate}%</div>
-                  <p className="text-blue-100 text-xs mt-1">
-                    Transaction success rate
-                  </p>
-                </div>
-                <TrendingUp className="h-10 w-10 text-blue-100" />
-              </div>
+          <Card className="!bg-blue-600 !text-white !border-none shadow-md relative overflow-hidden">
+            <CardContent className="p-4 md:p-6">
+              <p className="text-white/90 text-[10px] uppercase font-bold tracking-widest mb-1">Efficiency</p>
+              <div className="text-lg md:text-3xl font-black text-white">{stats.successRate}%</div>
+              <p className="text-white/80 text-[10px] mt-1 truncate font-medium">Success rate</p>
             </CardContent>
+            <TrendingUp className="absolute -right-3 -bottom-3 h-16 w-16 text-white/10 rotate-12" />
           </Card>
 
-          <Card className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-yellow-100 text-sm font-medium">Pending</p>
-                  <div className="text-3xl font-bold">{stats.pendingPayments}</div>
-                  <p className="text-yellow-100 text-xs mt-1">
-                    Awaiting completion
-                  </p>
-                </div>
-                <Clock className="h-10 w-10 text-yellow-100" />
-              </div>
+          <Card className="!bg-amber-500 !text-white !border-none shadow-md relative overflow-hidden">
+            <CardContent className="p-4 md:p-6">
+              <p className="text-white/90 text-[10px] uppercase font-bold tracking-widest mb-1">In Review</p>
+              <div className="text-lg md:text-3xl font-black text-white">{stats.pendingPayments}</div>
+              <p className="text-white/80 text-[10px] mt-1 truncate font-medium">Pending clear</p>
             </CardContent>
+            <Clock className="absolute -right-3 -bottom-3 h-16 w-16 text-white/10 rotate-12" />
           </Card>
 
-          <Card className="bg-gradient-to-r from-red-500 to-red-600 text-white">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-red-100 text-sm font-medium">Failed</p>
-                  <div className="text-3xl font-bold">{stats.failedPayments}</div>
-                  <p className="text-red-100 text-xs mt-1">
-                    Unsuccessful payments
-                  </p>
-                </div>
-                <XCircle className="h-10 w-10 text-red-100" />
-              </div>
+          <Card className="!bg-rose-600 !text-white !border-none shadow-md relative overflow-hidden">
+            <CardContent className="p-4 md:p-6">
+              <p className="text-white/90 text-[10px] uppercase font-bold tracking-widest mb-1">Failed</p>
+              <div className="text-lg md:text-3xl font-black text-white">{stats.failedPayments}</div>
+              <p className="text-white/80 text-[10px] mt-1 truncate font-medium">Action needed</p>
             </CardContent>
+            <XCircle className="absolute -right-3 -bottom-3 h-16 w-16 text-white/10 rotate-12" />
           </Card>
         </div>
 
-        {/* Detailed Status Breakdown */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="hover:shadow-md transition-shadow">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="bg-green-100 p-2 rounded-lg">
-                    <CheckCircle className="h-6 w-6 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Successful Payments</p>
-                    <p className="text-2xl font-bold text-green-600">{stats.successfulPayments}</p>
-                  </div>
-                </div>
-                <ArrowUp className="h-4 w-4 text-green-600" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-md transition-shadow">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="bg-yellow-100 p-2 rounded-lg">
-                    <Clock className="h-6 w-6 text-yellow-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Pending Payments</p>
-                    <p className="text-2xl font-bold text-yellow-600">{stats.pendingPayments}</p>
-                  </div>
-                </div>
-                <Clock className="h-4 w-4 text-yellow-600" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-md transition-shadow">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="bg-red-100 p-2 rounded-lg">
-                    <XCircle className="h-6 w-6 text-red-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Failed Payments</p>
-                    <p className="text-2xl font-bold text-red-600">{stats.failedPayments}</p>
-                  </div>
-                </div>
-                <ArrowDown className="h-4 w-4 text-red-600" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Tabbed Content */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="overview" className="flex items-center gap-2">
-              <BarChart3 className="w-4 h-4" />
-              Overview
+        {/* Content Navigation */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="flex w-full overflow-x-auto bg-slate-100 p-1 rounded-2xl no-scrollbar">
+            <TabsTrigger value="overview" className="flex-1 py-3 text-xs md:text-sm font-bold gap-2">
+              <Activity className="w-4 h-4" /> Trend
             </TabsTrigger>
-            <TabsTrigger value="transactions" className="flex items-center gap-2">
-              <CreditCard className="w-4 h-4" />
-              Transactions
+            <TabsTrigger value="transactions" className="flex-1 py-3 text-xs md:text-sm font-bold gap-2">
+              <CreditCard className="w-4 h-4" /> Orders
             </TabsTrigger>
-            <TabsTrigger value="actions" className="flex items-center gap-2">
-              <Settings className="w-4 h-4" />
-              Quick Actions
+            <TabsTrigger value="menu" className="flex-1 py-3 text-xs md:text-sm font-bold gap-2">
+              <UtensilsCrossed className="w-4 h-4" /> Menu
             </TabsTrigger>
           </TabsList>
 
-          {/* Overview Tab */}
-          <TabsContent value="overview" className="space-y-6">
-            {/* Chart: Revenue Trend (Last 7 Days) */}
-            {dailyData.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5" />
-                    Revenue Trend (Last 7 Days)
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={250}>
+          <TabsContent value="overview" className="mt-4 space-y-4">
+            <Card className="border-none shadow-sm overflow-hidden">
+              <CardHeader className="p-4">
+                <CardTitle className="text-sm font-bold flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-blue-500" />
+                  Revenue Analytics
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-2 md:p-6">
+                <div className="h-[250px] md:h-[350px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={dailyData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="revenue" fill="#3b82f6" name="Revenue" />
-                      <Bar dataKey="successful" fill="#22c55e" name="Successful" />
-                      <Bar dataKey="failed" fill="#ef4444" name="Failed" />
-                      <Bar dataKey="pending" fill="#f59e42" name="Pending" />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
+                      <Tooltip 
+                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                      />
+                      <Bar dataKey="revenue" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
-                </CardContent>
-              </Card>
-            )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-            {/* Daily Summary */}
-            {analytics?.dailySummaries?.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Activity className="w-5 h-5" />
-                    Daily Summary
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-4">
-                    {analytics.dailySummaries.slice(0, 7).map((day, index) => (
-                      <div key={index} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="font-semibold text-gray-900">{day.dateFormatted}</span>
-                          <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                            {day.totalTransactions} transactions
-                          </span>
+          <TabsContent value="transactions" className="mt-4">
+            <Card className="border-none shadow-sm overflow-hidden">
+              <CardContent className="p-0">
+                {analytics?.transactions?.length > 0 ? (
+                  <div className="divide-y divide-slate-100">
+                    {analytics.transactions.slice(0, 10).map((transaction, idx) => (
+                      <div key={transaction.id || idx} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                        <div className="flex items-center gap-3 overflow-hidden">
+                          <div className={`p-2.5 rounded-xl ${
+                            transaction.status === 'success' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'
+                          }`}>
+                            <DollarSign className="w-5 h-5" />
+                          </div>
+                          <div className="truncate">
+                            <p className="font-bold text-slate-900 truncate">{transaction.phoneNumber || 'Order'}</p>
+                            <p className="text-[10px] text-slate-400 font-medium">{formatDate(transaction.createdAt)}</p>
+                          </div>
                         </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                          <div className="text-center p-3 bg-green-50 rounded-lg">
-                            <div className="font-bold text-xl text-green-600">{day.successful}</div>
-                            <div className="text-sm text-green-700">Successful</div>
-                          </div>
-                          <div className="text-center p-3 bg-yellow-50 rounded-lg">
-                            <div className="font-bold text-xl text-yellow-600">{day.pending}</div>
-                            <div className="text-sm text-yellow-700">Pending</div>
-                          </div>
-                          <div className="text-center p-3 bg-red-50 rounded-lg">
-                            <div className="font-bold text-xl text-red-600">{day.failed}</div>
-                            <div className="text-sm text-red-700">Failed</div>
-                          </div>
-                          <div className="text-center p-3 bg-blue-50 rounded-lg">
-                            <div className="font-bold text-xl text-blue-600">
-                              {formatCurrency(day.totalRevenue)}
-                            </div>
-                            <div className="text-sm text-blue-700">Revenue</div>
+                        <div className="text-right shrink-0">
+                          <p className="font-black text-slate-900">{formatCurrency(transaction.amount)}</p>
+                          <div className="scale-[0.7] origin-right">
+                            {getStatusBadge(transaction.status)}
                           </div>
                         </div>
                       </div>
                     ))}
                   </div>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-
-          {/* Transactions Tab */}
-          <TabsContent value="transactions">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CreditCard className="w-5 h-5" />
-                  Recent Transactions
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <div className="text-center py-8">
-                    <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
-                    <p className="text-gray-600">Loading transactions...</p>
-                  </div>
-                ) : analytics?.transactions && analytics.transactions.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b bg-gray-50">
-                          <th className="text-left p-4 font-semibold">Phone Number</th>
-                          <th className="text-left p-4 font-semibold">Amount</th>
-                          <th className="text-left p-4 font-semibold">Status</th>
-                          <th className="text-left p-4 font-semibold">Date</th>
-                          <th className="text-left p-4 font-semibold">Reference</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {analytics.transactions.slice(0, 10).map((transaction, index) => (
-                          <tr key={transaction.id || index} className="border-b hover:bg-gray-50 transition-colors">
-                            <td className="p-4 font-mono text-sm">
-                              {transaction.phoneNumber || 'N/A'}
-                            </td>
-                            <td className="p-4 font-semibold">
-                              {formatCurrency(transaction.amount)}
-                            </td>
-                            <td className="p-4">
-                              {getStatusBadge(transaction.status)}
-                            </td>
-                            <td className="p-4 text-sm text-gray-600">
-                              {formatDate(transaction.createdAt)}
-                            </td>
-                            <td className="p-4 text-sm font-mono">
-                              {transaction.transactionRef || transaction.id?.substring(0, 8) || 'N/A'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
                 ) : (
-                  <div className="text-center py-12">
-                    <BarChart3 className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-                    <h3 className="text-lg font-semibold text-gray-600 mb-2">No transactions found</h3>
-                    <p className="text-gray-500">Your transactions will appear here once you start processing payments.</p>
+                  <div className="text-center py-20 px-6">
+                    <Search className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+                    <p className="font-bold text-slate-400">No activity yet</p>
                   </div>
                 )}
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Quick Actions Tab */}
-          <TabsContent value="actions">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {/* Generate QR Code */}
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={handleNavigateToQRGenerator}>
-                <CardContent className="p-6 text-center">
-                  <div className="bg-green-100 p-4 rounded-full w-fit mx-auto mb-4">
-                    <QrCode className="w-8 h-8 text-green-600" />
-                  </div>
-                  <h3 className="font-semibold text-lg mb-2">Generate QR Code</h3>
-                  <p className="text-gray-600 text-sm mb-4">
-                    Create payment QR codes for your customers
-                  </p>
-                  <Button className="w-full bg-green-600 hover:bg-green-700">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Create QR Code
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* QR Scanner 
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={handleNavigateToScanner}>
-                <CardContent className="p-6 text-center">
-                  <div className="bg-blue-100 p-4 rounded-full w-fit mx-auto mb-4">
-                    <Smartphone className="w-8 h-8 text-blue-600" />
-                  </div>
-                  <h3 className="font-semibold text-lg mb-2">QR Scanner</h3>
-                  <p className="text-gray-600 text-sm mb-4">
-                    Scan QR codes to process customer payments
-                  </p>
-                  <Button className="w-full" variant="outline">
-                    <QrCode className="w-4 h-4 mr-2" />
-                    Open Scanner
-                  </Button>
-                </CardContent>
-              </Card> */}
-
-              {/* Export Data */}
-              <Card className="bg-green-100 p-4 rounded-full w-fit mx-auto mb-4w">
-                <CardContent className="p-6 text-center">
-                  <div className="bg-purple-100 p-4 rounded-full w-fit mx-auto mb-4">
-                    <Download className="w-8 h-8 text-purple-600" />
-                  </div>
-                  <h3 className="font-semibold text-lg mb-2 bg">Export Data</h3>
-                  <p className="text-gray-600 text-sm mb-4">
-                    Download your transaction data as CSV
-                  </p>
-                  <Button
-                    className="w-full"
-                    variant="outline"
-                    onClick={downloadCSV}
-                    disabled={!analytics?.transactions?.length}
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    Export CSV
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
+          <TabsContent value="menu" className="mt-4">
+            <MenuModule merchantId={user.uid} />
           </TabsContent>
         </Tabs>
-
-        {/* Debug Panel */}
-        {showDebug && debugData && (
-          <Card className="border-yellow-200 bg-yellow-50">
-            <CardHeader>
-              <CardTitle className="text-yellow-800 flex items-center gap-2">
-                <Eye className="w-5 h-5" />
-                Debug Information
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div>
-                  <h4 className="font-semibold text-sm mb-3 text-gray-700">Database Stats</h4>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span>Total DB Records:</span>
-                      <span className="font-mono font-bold">{debugData.totalTransactions}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Your Transactions:</span>
-                      <span className="font-mono font-bold">{debugData.merchantTransactions}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Your Merchant ID:</span>
-                      <span className="font-mono text-xs bg-gray-200 px-2 py-1 rounded">
-                        {debugData.merchantId}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className="font-semibold text-sm mb-3 text-gray-700">Field Issues</h4>
-                  <div className="space-y-2 text-sm">
-                    <div className={`flex justify-between ${debugData.fieldIssues?.missingMerchantId > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                      <span>Missing Merchant ID:</span>
-                      <span className="font-bold">{debugData.fieldIssues?.missingMerchantId || 0}</span>
-                    </div>
-                    <div className={`flex justify-between ${debugData.fieldIssues?.missingCheckoutRequestID > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                      <span>Missing Checkout ID:</span>
-                      <span className="font-bold">{debugData.fieldIssues?.missingCheckoutRequestID || 0}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>With Callbacks:</span>
-                      <span className="font-bold">{debugData.fieldIssues?.withCallbacks || 0}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className="font-semibold text-sm mb-3 text-gray-700">Status Breakdown</h4>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span>Pending:</span>
-                      <span className="font-bold text-yellow-600">{debugData.fieldIssues?.pendingTransactions || 0}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Successful:</span>
-                      <span className="font-bold text-green-600">{debugData.fieldIssues?.successfulTransactions || 0}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {debugData.recentTransactions?.length > 0 && (
-                <div className="mt-6">
-                  <h4 className="font-semibold text-sm mb-3 text-gray-700">Recent Transactions Sample</h4>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs bg-white rounded">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left p-2">ID</th>
-                          <th className="text-left p-2">Amount</th>
-                          <th className="text-left p-2">Status</th>
-                          <th className="text-left p-2">Phone</th>
-                          <th className="text-left p-2">Callback?</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {debugData.recentTransactions.slice(0, 3).map((tx, index) => (
-                          <tr key={index} className="border-b">
-                            <td className="p-2 font-mono">{tx.id.substring(0, 8)}...</td>
-                            <td className="p-2">{tx.amount}</td>
-                            <td className="p-2">
-                              <Badge variant={tx.status === 'success' ? 'success' : tx.status === 'pending' ? 'warning' : 'error'}>
-                                {tx.status}
-                              </Badge>
-                            </td>
-                            <td className="p-2 font-mono">{tx.phoneNumber}</td>
-                            <td className="p-2">{tx.hasCallbackData ? '✅' : '❌'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
       </div>
     </div>
   );
