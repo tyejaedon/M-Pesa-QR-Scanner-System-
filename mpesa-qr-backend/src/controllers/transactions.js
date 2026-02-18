@@ -172,7 +172,7 @@ async function createTransaction(req, res) {
     if (qrData) {
       transactionData.qrData = qrData;
       transactionData.description = description || qrData.description || 'QR Payment';
-      transactionData.businessName = qrData.businessName;
+      transactionData.name = QrData.name;
       transactionData.qrMetadata = {
         generatedAt: admin.firestore.FieldValue.serverTimestamp(),
         qrType: qrData.type || 'merchant_payment',
@@ -366,305 +366,268 @@ async function getTransactions(req, res) {
     res.status(500).json({ error: `Failed to retrieve transactions: ${error.message}` });
   }
 }
+// TREND CALCULATOR: Simple linear regression for revenue forecasting
+// Helper: Calculate Linear Regression Trend
+function calculateTrend(dataPoints) {
+  const n = dataPoints.length;
+  // Need at least 2 points to make a line
+  if (n < 2) return { slope: 0, nextPeriodPrediction: 0, trend: 'stable' };
+
+  let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+  
+  dataPoints.forEach(p => {
+    sumX += p.x;
+    sumY += p.y;
+    sumXY += (p.x * p.y);
+    sumXX += (p.x * p.x);
+  });
+
+  const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+  const intercept = (sumY - slope * sumX) / n;
+  
+  // Predict the value for the NEXT period (n + 1)
+  const nextVal = (slope * (n + 1)) + intercept;
+  
+  return { 
+    slope, 
+    nextPeriodPrediction: Math.max(0, nextVal), // Prevent negative revenue
+    trend: slope > 0.5 ? 'growth' : slope < -0.5 ? 'decline' : 'stable'
+  };
+}
+
 
 // ENHANCED: Transaction analytics with QR insights
-async function getTransactionAnalytics(req, res) {
-  const merchantId = req.user.uid;
-  const { 
-    period = 'week', 
-    status,           
-    startDate,        
-    endDate,
-    includeGuest = true,
-    includeQRMetrics = true // New: include QR-specific analytics
-  } = req.query;
-
+async function getTransactionAnalytics (req, res){
   try {
-    console.log(`Analytics request - merchant: ${merchantId}, period: ${period}, status: ${status}, includeQRMetrics: ${includeQRMetrics}`);
+    const merchantId = req.user.uid; // Assumes auth middleware populates req.user
+    const { 
+      period = 'week', 
+      status,           
+      includeQRMetrics = 'true' 
+    } = req.query;
 
-    // Calculate date range
+    console.log(`Analytics Request: ${merchantId} [${period}]`);
+
+    // 1. DATE RANGE CALCULATION
     const now = new Date();
     let queryStartDate = new Date();
-    let queryEndDate = null;
-    
-    if (period === 'custom' && startDate && endDate) {
-      queryStartDate = new Date(startDate);
-      queryStartDate.setHours(0, 0, 0, 0);
-      
-      queryEndDate = new Date(endDate);
-      queryEndDate.setHours(23, 59, 59, 999);
-    } else {
-      switch (period) {
-        case 'today':
-          queryStartDate.setHours(0, 0, 0, 0);
-          queryEndDate = new Date();
-          queryEndDate.setHours(23, 59, 59, 999);
-          break;
-        case 'week':
-          queryStartDate.setDate(now.getDate() - 7);
-          break;
-        case 'month':
-          queryStartDate.setMonth(now.getMonth() - 1);
-          break;
-        case 'year':
-          queryStartDate.setFullYear(now.getFullYear() - 1);
-          break;
-        case 'all':
-        default:
-          queryStartDate = new Date('2020-01-01');
-          break;
-      }
-      console.log(`Period: ${period} - from ${queryStartDate.toISOString()}`);
+    let queryEndDate = new Date(); // Defaults to now
+
+    // Reset end date to end of today
+    queryEndDate.setHours(23, 59, 59, 999);
+
+    switch (period) {
+      case 'today':
+        queryStartDate.setHours(0, 0, 0, 0);
+        break;
+      case 'week':
+        // Last 7 days
+        queryStartDate.setDate(now.getDate() - 7);
+        queryStartDate.setHours(0, 0, 0, 0);
+        break;
+      case 'month':
+        queryStartDate.setMonth(now.getMonth() - 1);
+        queryStartDate.setHours(0, 0, 0, 0);
+        break;
+      case 'year':
+        queryStartDate.setFullYear(now.getFullYear() - 1);
+        break;
+      default:
+        // Default to week if unknown
+        queryStartDate.setDate(now.getDate() - 7);
     }
 
-    // Build queries
-    let directMerchantQuery = db.collection("transactions")
-      .where("merchantId", "==", merchantId);
-    
-    let guestTransactionQuery = db.collection("transactions")
-      .where("guestMerchantInfo.originalMerchantId", "==", merchantId);
+    // 2. FIRESTORE QUERIES
+    // We need both direct transactions and "Guest" transactions linked to this merchant
+    const startTimestamp = admin.firestore.Timestamp.fromDate(queryStartDate);
+    const endTimestamp = admin.firestore.Timestamp.fromDate(queryEndDate);
 
-    // Apply date filtering if not "all" period
-    if (period !== 'all') {
-      const startTimestamp = admin.firestore.Timestamp.fromDate(queryStartDate);
-      directMerchantQuery = directMerchantQuery.where("createdAt", ">=", startTimestamp);
-      guestTransactionQuery = guestTransactionQuery.where("createdAt", ">=", startTimestamp);
-      
-      if (queryEndDate) {
-        const endTimestamp = admin.firestore.Timestamp.fromDate(queryEndDate);
-        directMerchantQuery = directMerchantQuery.where("createdAt", "<=", endTimestamp);
-        guestTransactionQuery = guestTransactionQuery.where("createdAt", "<=", endTimestamp);
-      }
-    }
+    const transactionsRef = db.collection('transactions');
 
-    // Execute queries with fallback
-    const [directSnapshot, guestSnapshot] = await executeQueriesWithFallback(
-      directMerchantQuery, guestTransactionQuery, period, queryStartDate, queryEndDate
-    );
+    // Query A: Direct Merchant Transactions
+    const directQuery = transactionsRef
+      .where('merchantId', '==', merchantId)
+      .where('createdAt', '>=', startTimestamp)
+      .where('createdAt', '<=', endTimestamp)
+      .get();
 
-    console.log(`Found ${directSnapshot.docs.length} direct merchant transactions`);
-    console.log(`Found ${guestSnapshot.docs.length} guest transactions`);
+    // Query B: Guest Transactions (where originalMerchantId matches)
+    const guestQuery = transactionsRef
+      .where('guestMerchantInfo.originalMerchantId', '==', merchantId)
+      .where('createdAt', '>=', startTimestamp)
+      .where('createdAt', '<=', endTimestamp)
+      .get();
 
-    // Combine and deduplicate transactions
-    const allTransactionDocs = [
+    const [directSnapshot, guestSnapshot] = await Promise.all([directQuery, guestQuery]);
+
+    // 3. MERGE & DEDUPLICATE DATA
+    const allDocs = [
       ...directSnapshot.docs,
-      ...guestSnapshot.docs.filter(doc => 
-        !directSnapshot.docs.some(directDoc => directDoc.id === doc.id)
-      )
+      ...guestSnapshot.docs.filter(gDoc => !directSnapshot.docs.some(dDoc => dDoc.id === gDoc.id))
     ];
 
-    console.log(`Total combined transactions: ${allTransactionDocs.length}`);
+    // Map to clean objects
+    let transactions = allDocs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-    // ENHANCED: Map transactions with QR metadata
-    let transactions = allTransactionDocs.map(doc => {
-      const data = doc.data();
-      return serializeTransaction({ 
-        id: doc.id, 
-        ...data,
-        merchantValidation: {
-          isValid: data.isValidMerchant || false,
-          merchantType: data.isValidMerchant ? 'registered' : 'guest',
-          paymentType: data.paymentType || 'unknown',
-          source: data.source || 'unknown'
-        },
-        qrMetadata: {
-          hasQRData: !!data.qrData,
-          qrSource: data.source === 'qr_scanner' ? 'customer_scanned' : 
-                   data.source === 'qr_generated' ? 'merchant_generated' : 'none',
-          qrType: data.qrData?.type || data.qrMetadata?.qrType || null
-        }
-      });
-    });
-
-    // Apply status filtering
+    // Apply Status Filter (if requested)
     if (status && status !== 'all') {
       transactions = transactions.filter(t => t.status === status);
-      console.log(`After status filtering (${status}): ${transactions.length} transactions`);
     }
 
-    // Sort by date (newest first)
-    transactions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    // Sort by Date (Oldest to Newest) - Critical for Analytics/Charts
+    transactions.sort((a, b) => new Date(a.createdAt.toDate()) - new Date(b.createdAt.toDate()));
 
-    // Calculate analytics
-    const totalTransactions = transactions.length;
-    const successfulTransactions = transactions.filter(t => t.status === 'success');
-    const pendingTransactions = transactions.filter(t => t.status === 'pending');
-    const failedTransactions = transactions.filter(t => ['failed', 'cancelled', 'error'].includes(t.status));
+    // 4. AGGREGATION & ANALYTICS LOOP
+    let totalRevenue = 0;
+    let qrRevenue = 0;
     
-    const realMerchantTransactions = transactions.filter(t => t.merchantValidation?.isValid === true);
-    const guestTransactions = transactions.filter(t => t.merchantValidation?.isValid === false);
-    const customerInitiated = transactions.filter(t => t.paymentType === 'customer_initiated');
-    const merchantInitiated = transactions.filter(t => t.paymentType === 'merchant_initiated');
-
-    // NEW: QR-specific analytics
-    const qrTransactions = transactions.filter(t => t.qrMetadata?.hasQRData);
-    const customerScannedQR = transactions.filter(t => t.qrMetadata?.qrSource === 'customer_scanned');
-    const merchantGeneratedQR = transactions.filter(t => t.qrMetadata?.qrSource === 'merchant_generated');
-    const nonQrTransactions = transactions.filter(t => !t.qrMetadata?.hasQRData);
-
-    const totalRevenue = successfulTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
-    const qrRevenue = successfulTransactions.filter(t => t.qrMetadata?.hasQRData).reduce((sum, t) => sum + (t.amount || 0), 0);
-    const nonQrRevenue = totalRevenue - qrRevenue;
+    // Arrays for counting
+    const successfulTransactions = [];
+    const pendingTransactions = [];
+    const failedTransactions = [];
     
-    const averageTransaction = successfulTransactions.length > 0 
-      ? totalRevenue / successfulTransactions.length 
-      : 0;
+    // QR Counters
+    let qrCount = 0;
+    let customerScannedCount = 0;
+    let merchantGeneratedCount = 0;
 
-    console.log(`Revenue calculation: ${successfulTransactions.length} successful transactions = KSH ${totalRevenue}`);
-    console.log(`QR Revenue: KSH ${qrRevenue} (${qrTransactions.length} QR transactions)`);
+    // Daily Summary Map (Key: "YYYY-MM-DD")
+    const dailyMap = {};
 
-    // Calculate daily summaries with QR insights
-    const dailySummaries = {};
-    
-    transactions.forEach(transaction => {
-      const date = new Date(transaction.createdAt);
-      const dateKey = date.toISOString().split('T')[0];
-      
-      if (!dailySummaries[dateKey]) {
-        dailySummaries[dateKey] = {
-          date: dateKey,
-          dateFormatted: date.toLocaleDateString('en-KE', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-          }),
-          totalTransactions: 0,
-          successful: 0,
-          pending: 0,
-          failed: 0,
-          totalRevenue: 0,
-          realMerchant: 0,
-          guestMerchant: 0,
-          qrTransactions: 0,
-          customerScannedQR: 0,
-          merchantGeneratedQR: 0,
-          nonQrTransactions: 0,
-          qrRevenue: 0,
-          transactions: []
-        };
-      }
-      
-      const summary = dailySummaries[dateKey];
-      summary.totalTransactions++;
-      summary.transactions.push(transaction);
-      
-      // Merchant type tracking
-      if (transaction.merchantValidation?.isValid === true) {
-        summary.realMerchant++;
-      } else {
-        summary.guestMerchant++;
-      }
+    // Initialize daily map with 0s for every day in range (so charts don't have gaps)
+    for (let d = new Date(queryStartDate); d <= queryEndDate; d.setDate(d.getDate() + 1)) {
+      const dateKey = d.toISOString().split('T')[0];
+      dailyMap[dateKey] = { date: dateKey, totalRevenue: 0, count: 0 };
+    }
 
-      // QR tracking
-      if (transaction.qrMetadata?.hasQRData) {
-        summary.qrTransactions++;
-        if (transaction.qrMetadata?.qrSource === 'customer_scanned') {
-          summary.customerScannedQR++;
-        } else if (transaction.qrMetadata?.qrSource === 'merchant_generated') {
-          summary.merchantGeneratedQR++;
+    // Hourly Heatmap Array (0-23)
+    const hoursMap = new Array(24).fill(0);
+
+    // --- MAIN LOOP ---
+    transactions.forEach(t => {
+      // Basic Buckets
+      if (t.status === 'success') successfulTransactions.push(t);
+      else if (t.status === 'pending') pendingTransactions.push(t);
+      else failedTransactions.push(t);
+
+      // Only calculate Math/Revenue on SUCCESSFUL transactions
+      if (t.status === 'success') {
+        const amount = Number(t.amount) || 0;
+        totalRevenue += amount;
+
+        // Date Handling
+        // Use t.createdAt.toDate() because it's a Firestore Timestamp
+        const dateObj = t.createdAt.toDate(); 
+        const dateKey = dateObj.toISOString().split('T')[0];
+        const hour = dateObj.getHours();
+
+        // 1. Hourly Heatmap
+        hoursMap[hour]++;
+
+        // 2. Daily Summaries
+        if (dailyMap[dateKey]) {
+          dailyMap[dateKey].totalRevenue += amount;
+          dailyMap[dateKey].count++;
         }
-      } else {
-        summary.nonQrTransactions++;
-      }
-      
-      // Status and revenue tracking
-      switch (transaction.status) {
-        case 'success':
-          summary.successful++;
-          summary.totalRevenue += transaction.amount || 0;
-          if (transaction.qrMetadata?.hasQRData) {
-            summary.qrRevenue += transaction.amount || 0;
-          }
-          break;
-        case 'pending':
-          summary.pending++;
-          break;
-        case 'failed':
-        case 'cancelled':
-        case 'error':
-          summary.failed++;
-          break;
+
+        // 3. QR Analytics
+        const isQR = t.qrMetadata?.hasQRData || t.source?.includes('qr');
+        if (isQR) {
+          qrRevenue += amount;
+          qrCount++;
+          if (t.qrMetadata?.qrSource === 'customer_scanned') customerScannedCount++;
+          if (t.qrMetadata?.qrSource === 'merchant_generated') merchantGeneratedCount++;
+        }
       }
     });
 
-    const dailySummariesArray = Object.values(dailySummaries)
-      .sort((a, b) => new Date(b.date) - new Date(a.date));
+    // 5. INTELLIGENCE PROCESSING
+    
+    // A. Peak Time Label
+    const peakHourIndex = hoursMap.indexOf(Math.max(...hoursMap));
+    const peakTimeLabel = `${peakHourIndex.toString().padStart(2, '0')}:00 - ${(peakHourIndex + 1).toString().padStart(2, '0')}:00`;
 
-    const successRate = totalTransactions > 0 
-      ? (successfulTransactions.length / totalTransactions * 100).toFixed(1)
-      : 0;
+    // B. Linear Regression (Prediction)
+    // Convert dailyMap to array and sort chronological
+    const sortedSummaries = Object.values(dailyMap).sort((a, b) => new Date(a.date) - new Date(b.date));
+    
+    // Create X,Y Points
+    const regressionPoints = sortedSummaries.map((day, index) => ({
+      x: index + 1,        // Day 1, Day 2...
+      y: day.totalRevenue  // Revenue that day
+    }));
 
-    const qrAdoptionRate = totalTransactions > 0
-      ? (qrTransactions.length / totalTransactions * 100).toFixed(1)
-      : 0;
+    const predictionModel = calculateTrend(regressionPoints);
 
-    // ENHANCED: Analytics with QR insights
-    const analytics = {
+    // 6. FINAL RESPONSE CONSTRUCTION
+    const analyticsData = {
       period,
-      status: status || 'all',  
       dateRange: {
         start: queryStartDate.toISOString(),
-        end: (queryEndDate || now).toISOString()
+        end: queryEndDate.toISOString()
       },
+      
+      // Standard Metrics
       summary: {
-        totalTransactions,
+        totalTransactions: transactions.length,
         successfulTransactions: successfulTransactions.length,
         pendingTransactions: pendingTransactions.length,
         failedTransactions: failedTransactions.length,
         totalRevenue,
-        averageTransaction,
-        successRate: parseFloat(successRate),
-        transactionBreakdown: {
-          realMerchantTransactions: realMerchantTransactions.length,
-          guestTransactions: guestTransactions.length,
-          customerInitiated: customerInitiated.length,
-          merchantInitiated: merchantInitiated.length
+        successRate: transactions.length > 0 
+          ? ((successfulTransactions.length / transactions.length) * 100).toFixed(1) 
+          : 0,
+        averageTransaction: successfulTransactions.length > 0 
+          ? (totalRevenue / successfulTransactions.length).toFixed(2) 
+          : 0
+      },
+
+      // The "Elite" Intelligence Block
+      insights: {
+        peakTradingHour: peakTimeLabel,
+        peakTradingVolume: Math.max(...hoursMap),
+        hourlyDistribution: hoursMap, // [0, 2, 5, 12...] for heatmap charts
+        
+        prediction: {
+          model: "Linear Regression",
+          trendDirection: predictionModel.trend, // 'growth', 'decline', 'stable'
+          nextDayRevenue: Math.round(predictionModel.nextPeriodPrediction),
+          confidenceLevel: regressionPoints.filter(p => p.y > 0).length >= 3 ? "high" : "low"
         }
       },
-      // NEW: QR Analytics
+
+      // QR Specifics
       qrAnalytics: includeQRMetrics === 'true' ? {
-        totalQRTransactions: qrTransactions.length,
-        customerScannedQR: customerScannedQR.length,
-        merchantGeneratedQR: merchantGeneratedQR.length,
-        nonQrTransactions: nonQrTransactions.length,
+        totalQRTransactions: qrCount,
         qrRevenue,
-        nonQrRevenue,
-        qrAdoptionRate: parseFloat(qrAdoptionRate),
-        qrSuccessRate: qrTransactions.length > 0 
-          ? (qrTransactions.filter(t => t.status === 'success').length / qrTransactions.length * 100).toFixed(1)
+        nonQrRevenue: totalRevenue - qrRevenue,
+        qrAdoptionRate: transactions.length > 0 
+          ? ((qrCount / transactions.length) * 100).toFixed(1) 
           : 0,
-        averageQRTransaction: qrTransactions.filter(t => t.status === 'success').length > 0
-          ? qrRevenue / qrTransactions.filter(t => t.status === 'success').length
-          : 0,
-        qrPaymentMethods: {
-          customerScanned: customerScannedQR.length,
-          merchantGenerated: merchantGeneratedQR.length
+        breakdown: {
+          customerScanned: customerScannedCount,
+          merchantGenerated: merchantGeneratedCount
         }
       } : null,
-      dailySummaries: dailySummariesArray,
-      transactions: transactions.slice(0, 50),
-      merchantLinking: {
-        directTransactions: directSnapshot.docs.length,
-        guestTransactions: guestSnapshot.docs.length,
-        totalLinked: allTransactionDocs.length,
-        merchantId: merchantId,
-        linkingHealth: ((realMerchantTransactions.length + guestTransactions.length) / Math.max(totalTransactions, 1) * 100).toFixed(1) + '%'
-      }
-    };
 
-    console.log(`Analytics completed: ${totalTransactions} total, ${qrTransactions.length} QR, ${successfulTransactions.length} successful`);
+      // Chart Data
+      dailySummaries: sortedSummaries
+    };
 
     res.status(200).json({
       status: 'success',
-      analytics
+      analytics: analyticsData
     });
-  } catch (error) {
-    console.error('Analytics error:', error);
-    res.status(500).json({ error: `Failed to get analytics: ${error.message}` });
-  }
-}
 
+  } catch (error) {
+    console.error('Analytics Error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to generate analytics',
+      error: error.message
+    });
+  }
+};
 // ENHANCED: Get single transaction with QR metadata
 async function getTransactionById(req, res) {
   const { transactionId } = req.params;
@@ -703,7 +666,7 @@ async function getTransactionById(req, res) {
                  transaction.source === 'qr_generated' ? 'merchant_generated' : 'none',
         qrType: transaction.qrData?.type || transaction.qrMetadata?.qrType || null,
         qrVersion: transaction.qrData?.version || transaction.qrMetadata?.qrVersion || null,
-        businessName: transaction.qrData?.businessName || transaction.businessName || null,
+        name: transaction.qrData?.name || transaction.name || null,
         qrReference: transaction.qrData?.reference || null,
         qrDescription: transaction.qrData?.description || null
       }
@@ -869,7 +832,7 @@ async function debugTransactions(req, res) {
         // NEW: QR information
         hasQRData: !!tx.qrData,
         qrType: tx.qrData?.type || null,
-        businessName: tx.qrData?.businessName || tx.businessName || null
+        name: tx.qrData?.name || tx.name || null
       }));
 
     const debugInfo = {
@@ -1033,7 +996,7 @@ console.log("Test Collection exists:", !testCol.empty || testCol.size === 0 ? "Y
           qrSource: data.source === 'qr_scanner' ? 'customer_scanned' : 
                    data.source === 'qr_generated' ? 'merchant_generated' : 'none',
           qrType: data.qrData?.type || data.qrMetadata?.qrType || null,
-          businessName: data.qrData?.businessName || data.businessName || null
+          name: data.qrData?.name || data.name || null
         } : undefined
       });
     });

@@ -3345,12 +3345,14 @@
     }
   },
   "dependencies": {
+    "@faker-js/faker": "^10.3.0",
     "assert": "^2.1.0",
     "axios": "^1.13.4",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "firebase": "^12.8.0",
-    "firebase-admin": "^13.6.0"
+    "firebase-admin": "^13.6.1",
+    "moment": "^2.30.1"
   }
 }

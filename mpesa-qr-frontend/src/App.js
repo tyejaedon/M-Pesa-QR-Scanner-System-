@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './hooks/useAuth';
+// ... imports
+import { AuthProvider, useAuth } from './hooks/useAuth'; // Import useAuth here
 
 // Components
 import Login from './components/Login';
@@ -12,51 +13,73 @@ import Transactions from './components/Transactions';
 import QRPaymentScanner from './components/QRPaymentScanner';
 import PayPrompt from "./components/PayPrompt";
 import PublicMenuPage from './components/PublicMenuPage';
+import LandingPage from './components/LandingPage';
 
 // Utilities
 import PrivateRoute from './utility/PrivateRoute';
+import { SubscriptionProvider } from './hooks/SubscriptionProvider';
+import { ThemeProvider } from './hooks/ThemeContext'; // Assuming you have this
 
-function App() {
-  // State for manual status tracking if you prefer mimicking your other project
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userData, setUserData] = useState(null);
+// --- 1. NEW COMPONENT: HANDLES ROUTING LOGIC ---
+const AppRoutes = () => {
+  const { user, loading } = useAuth(); // Now we can use the hook!
 
-  // Function to be called by Login child to update parent state
-  const handleLoginSuccess = (status, data) => {
-    setIsLoggedIn(status);
-    setUserData(data);
-  };
+  if (loading) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-zinc-50 dark:bg-black">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
+      </div>
+    );
+  }
 
   return (
+    <Routes>
+      {/* 1. Landing Page Redirect */}
+      <Route 
+        path="/" 
+        element={user ? <Navigate to="/dashboard" replace /> : <LandingPage />} 
+      />
+
+      {/* 2. Auth Routes (Redirect if already logged in) */}
+      <Route
+        path="/login"
+        element={user ? <Navigate to="/dashboard" replace /> : <Login />}
+      />
+      <Route 
+        path="/register" 
+        element={user ? <Navigate to="/dashboard" replace /> : <Register />} 
+      />
+
+      {/* Public Routes */}
+      <Route path="/scan" element={<PublicQRScanner />} />
+      <Route path="/pay" element={<PayPrompt />} />
+      <Route path="/public/menu/:merchantId" element={<PublicMenuPage />} />
+
+      {/* Protected Routes Group */}
+      <Route element={<PrivateRoute />}>
+        <Route path="/dashboard" element={<MerchantDashboard />} />
+        <Route path="/generate-qr" element={<MerchantQRGenerator />} />
+        <Route path="/transactions" element={<Transactions />} />
+        <Route path="/payment-scanner" element={<QRPaymentScanner />} />
+      </Route>
+
+      {/* Fallback */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+};
+
+// --- 2. MAIN APP COMPONENT: WRAPS PROVIDERS ONLY ---
+function App() {
+  return (
     <AuthProvider>
-      <div className="App">
-        <Routes>
-          {/* Auth Routes */}
-          <Route 
-            path="/login" 
-            element={<Login onLoginSuccess={handleLoginSuccess} />} 
-          />
-          <Route path="/register" element={<Register />} />
-          
-          {/* Public Routes */}
-          <Route path="/scan" element={<PublicQRScanner />} />
-          <Route path="/pay" element={<PayPrompt />} />
-          <Route path="/public/menu/:merchantId" element={<PublicMenuPage />} />
-          
-          {/* Protected Routes Group */}
-          <Route element={<PrivateRoute />}>
-          {console.log('🔐 Accessing protected routes, isLoggedIn:', userData)}
-            <Route path="/dashboard" element={<MerchantDashboard />} />
-            <Route path="/generate-qr" element={<MerchantQRGenerator />} />
-            <Route path="/transactions" element={<Transactions />} />
-            <Route path="/payment-scanner" element={<QRPaymentScanner />} />
-          </Route>
-          
-          {/* Fallback Redirection */}
-          <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
-      </div>
+      <SubscriptionProvider>
+        <ThemeProvider> {/* Add ThemeProvider here if you use it */}
+           <div className="App">
+             <AppRoutes />
+           </div>
+        </ThemeProvider>
+      </SubscriptionProvider>
     </AuthProvider>
   );
 }

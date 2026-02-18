@@ -1,13 +1,16 @@
-// API Configuration - Support both local and ngrok
-const useNgrok = process.env.REACT_APP_USE_NGROK === 'true';
-const ngrokUrl = process.env.REACT_APP_API_URL?.replace(/\/$/, ""); 
-const localUrl = 'http://10.39.202.82:5000';
+// constants.js
 
+// 1. ROBUST URL RESOLUTION
+// We check for the variable you actually set (REACT_APP_API_URL)
+// If that fails, we fallback to the IP you provided: http://192.168.100.10:5000
+const ENV_URL = process.env.REACT_APP_API_URL || process.env.REACT_APP_BACKEND_URL;
+const FALLBACK_URL = "http://192.168.100.10:5000";
 
-// Use the ngrok URL if enabled, otherwise stick to localhost
+// Remove trailing slashes to prevent double slash errors (e.g. //api)
+export const API_BASE_URL = (ENV_URL || FALLBACK_URL).replace(/\/$/, "");
 
-// IMPORTANT: Ensure your backend uses the /api prefix consistently
-export const API_BASE_URL = localUrl;
+console.log("🚀 API Base URL configured as:", API_BASE_URL);
+
 // Payment Status Constants
 export const STATUS = {
   PENDING: 'pending',
@@ -18,30 +21,31 @@ export const STATUS = {
 };
 
 // API Endpoints
+// IMPORTANT: Notice I removed the hardcoded '/api' strings here 
+// because we will construct them safely, OR ensure your backend expects /api/api if base has it.
+// Standard practice: Base URL = host:5000, Endpoints start with /api
 export const API_ENDPOINTS = {
   AUTH: {
     LOGIN: '/api/auth/login',
     SIGNUP: '/api/auth/signup',
     VERIFY: '/api/auth/verify-token'
   },
-  // M-Pesa/Daraja endpoints (Matches daraja.js)
   MPESA: {
-    CUSTOMER_PAYMENT: '/api/daraja/customer-payment', //
-    MERCHANT_PAYMENT: '/api/daraja/stk-push',         //
-    STK_PUSH: '/api/daraja/stk-push',                //
-    CALLBACK: '/api/daraja/stk-callback',             //
-    GENERATE_QR: '/api/daraja/generate-qr'            //
+    CUSTOMER_PAYMENT: '/api/daraja/customer-payment',
+    MERCHANT_PAYMENT: '/api/daraja/stk-push',
+    STK_PUSH: '/api/daraja/stk-push',
+    CALLBACK: '/api/daraja/stk-callback',
+    GENERATE_QR: '/api/daraja/generate-qr'
   },
-  // Transaction endpoints (Matches transactions.js)
   TRANSACTIONS: {
-    LIST: '/api/transactions',                        //
-    ANALYTICS: '/api/transactions/analytics',         //
-    GET_BY_ID: '/api/transactions/:id',               //
-    QR_INSIGHTS: '/api/transactions/qr-insights'      //
+    LIST: '/api/transactions',
+    ANALYTICS: '/api/transactions/analytics', // This is the one we fixed!
+    GET_BY_ID: '/api/transactions/:id',
+    QR_INSIGHTS: '/api/transactions/qr-insights'
   },
   HEALTH: {
-    CHECK: '/api/daraja/health-check',                //
-    TEST_TOKEN: '/api/daraja/test-token'              //
+    CHECK: '/api/daraja/health-check',
+    TEST_TOKEN: '/api/daraja/test-token'
   }
 };
 
@@ -69,9 +73,9 @@ export const ERROR_MESSAGES = {
 
 // UI Configuration
 export const UI_CONFIG = {
-  POLLING_INTERVAL: 5000, // 5 seconds
-  MAX_POLL_ATTEMPTS: 12,  // 1 minute total (5s * 12)
-  PAYMENT_TIMEOUT: 60000, // 60 seconds
+  POLLING_INTERVAL: 5000, 
+  MAX_POLL_ATTEMPTS: 12,  
+  PAYMENT_TIMEOUT: 60000, 
 };
 
 // User Roles

@@ -23,5 +23,6 @@ router.get('/all-transactions', getAllTransactionsGlobal);
 router.get("/all", verifyToken, getMerchantAllTransactions);
 
 router.get("/:transactionId", verifyToken, getTransactionById);
+router.get('/:id', verifyToken, getTransactionById);
 
 export default router;

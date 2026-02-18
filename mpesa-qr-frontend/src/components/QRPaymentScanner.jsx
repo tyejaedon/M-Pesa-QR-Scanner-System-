@@ -227,7 +227,7 @@ const QRPaymentScanner = ({ onPaymentInitiated, onNavigateToLanding }) => {
         amount: parseFloat(amount),
         qrData: {
           merchantId: qrData.merchantId || `qr-${Date.now()}`,
-          businessName: qrData.merchantName || qrData.businessName || 'QR Merchant',
+          name: qrData.merchantName || QrData.name || 'QR Merchant',
           businessShortCode: qrData.businessShortCode || MPESA_CONFIG.SANDBOX_SHORTCODE
         }
       };
@@ -236,7 +236,7 @@ const QRPaymentScanner = ({ onPaymentInitiated, onNavigateToLanding }) => {
 
       if (result.success) {
         const paymentData = {
-          merchantName: qrData.merchantName || qrData.businessName || "QR Merchant",
+          merchantName: qrData.merchantName || QrData.name || "QR Merchant",
           phoneNumber,
           amount: parseFloat(amount),
           timestamp: new Date(),
@@ -262,7 +262,7 @@ const QRPaymentScanner = ({ onPaymentInitiated, onNavigateToLanding }) => {
 
   const getMerchantDisplayName = () => {
     if (qrData?.merchantName) return qrData.merchantName;
-    if (qrData?.businessName) return qrData.businessName;
+    if (qrData?.name) return QrData.name;
     return "QR Merchant";
   };
 
@@ -273,55 +273,51 @@ const QRPaymentScanner = ({ onPaymentInitiated, onNavigateToLanding }) => {
     };
   }, []);
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-green-600 to-green-700 text-white shadow-lg">
+return (
+    // Rebranded: Deep Zinc-Black background for AMOLED optimization
+    <div className="min-h-screen bg-white dark:bg-zinc-950 pb-20 relative selection:bg-orange-600/30">
+      
+      {/* Header - Rebranded for High-Contrast Impact */}
+      <div className="bg-zinc-100 dark:bg-zinc-900 text-zinc-950 dark:text-white shadow-2xl border-b border-zinc-200 dark:border-zinc-800">
         <div className="px-4 py-6">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="bg-white/20 p-2 rounded-full">
-                <QrCode className="w-6 h-6" />
+            <div className="flex items-center gap-4">
+              <div className="bg-orange-600 p-2.5 rounded-2xl shadow-lg shadow-orange-600/20">
+                <QrCode className="w-6 h-6 text-zinc-950 dark:text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold">M-Pesa QR Pay</h1>
-                <p className="text-green-100 text-sm">Scan • Enter PIN • Pay</p>
+                <h1 className="text-xl font-black uppercase italic tracking-tighter">
+                  M-Pesa <span className="text-orange-600">QR</span> Pay
+                </h1>
+                <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-[0.2em]">Scan • Authorize • Pay</p>
               </div>
             </div>
             
-            {/* Menu */}
             <div className="relative">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowNavMenu(!showNavMenu)}
-                className="text-white hover:bg-white/20"
+                className="text-zinc-400 hover:text-zinc-950 dark:text-white hover:bg-zinc-800"
               >
                 <ChevronDown className="w-4 h-4" />
               </Button>
               
               {showNavMenu && (
-                <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl py-2 z-50">
+                <div className="absolute right-0 top-full mt-3 w-56 bg-zinc-100 dark:bg-zinc-900 rounded-2xl shadow-2xl py-3 z-50 border border-zinc-200 dark:border-zinc-800 animate-in fade-in zoom-in-95 duration-200">
                   <button
-                    onClick={() => {
-                      setShowNavMenu(false);
-                      onNavigateToLanding();
-                    }}
-                    className="w-full px-4 py-3 text-left text-gray-700 hover:bg-gray-50 flex items-center gap-3"
+                    onClick={() => { setShowNavMenu(false); onNavigateToLanding(); }}
+                    className="w-full px-5 py-4 text-left text-zinc-300 hover:text-zinc-950 dark:text-white hover:bg-zinc-800 flex items-center gap-4 transition-colors"
                   >
-                    <Home className="w-4 h-4" />
-                    <span>Back to Home</span>
+                    <Home className="w-4 h-4 text-orange-500" />
+                    <span className="font-bold text-sm uppercase tracking-tight">Exit Terminal</span>
                   </button>
-                  
                   <button
-                    onClick={() => {
-                      setShowNavMenu(false);
-                      handleStartOver();
-                    }}
-                    className="w-full px-4 py-3 text-left text-gray-700 hover:bg-gray-50 flex items-center gap-3"
+                    onClick={() => { setShowNavMenu(false); handleStartOver(); }}
+                    className="w-full px-5 py-4 text-left text-zinc-300 hover:text-zinc-950 dark:text-white hover:bg-zinc-800 flex items-center gap-4 transition-colors"
                   >
-                    <RefreshCw className="w-4 h-4" />
-                    <span>Start Over</span>
+                    <RefreshCw className="w-4 h-4 text-orange-500" />
+                    <span className="font-bold text-sm uppercase tracking-tight">Restart Flow</span>
                   </button>
                 </div>
               )}
@@ -330,276 +326,152 @@ const QRPaymentScanner = ({ onPaymentInitiated, onNavigateToLanding }) => {
         </div>
       </div>
 
-      <div className="max-w-md mx-auto px-4 py-6 space-y-6">
-        {/* Progress Steps */}
-        <Card className="border-blue-200 bg-blue-50">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-center gap-4">
-              <div className={`flex items-center gap-2 ${
-                paymentStep === 'scan' ? 'text-blue-600' : qrData ? 'text-green-600' : 'text-gray-400'
-              }`}>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                  paymentStep === 'scan' ? 'bg-blue-600 text-white' : qrData ? 'bg-green-600 text-white' : 'bg-gray-300'
-                }`}>1</div>
-                <span className="text-sm font-medium">Scan</span>
-              </div>
-              
-              <div className="flex-1 h-px bg-gray-300"></div>
-              
-              <div className={`flex items-center gap-2 ${
-                paymentStep === 'details' ? 'text-blue-600' : paymentStep === 'confirm' ? 'text-green-600' : 'text-gray-400'
-              }`}>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                  paymentStep === 'details' ? 'bg-blue-600 text-white' : paymentStep === 'confirm' ? 'bg-green-600 text-white' : 'bg-gray-300'
-                }`}>2</div>
-                <span className="text-sm font-medium">Details</span>
-              </div>
-              
-              <div className="flex-1 h-px bg-gray-300"></div>
-              
-              <div className={`flex items-center gap-2 ${
-                paymentStep === 'confirm' ? 'text-blue-600' : 'text-gray-400'
-              }`}>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                  paymentStep === 'confirm' ? 'bg-blue-600 text-white' : 'bg-gray-300'
-                }`}>3</div>
-                <span className="text-sm font-medium">Pay</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Error Display */}
-        {error && (
-          <Card className="border-red-200 bg-red-50">
-            <CardContent className="p-4">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-red-700 text-sm">{error}</p>
+      <div className="max-w-md mx-auto px-4 py-8 space-y-6">
+        
+        {/* Progress Steps - Rebranded with Orange/Zinc */}
+        <div className="px-2">
+          <div className="flex items-center justify-between">
+            {[ 
+              { step: 'scan', label: 'Scan', id: 1 },
+              { step: 'details', label: 'Details', id: 2 },
+              { step: 'confirm', label: 'Pay', id: 3 }
+            ].map((s, idx) => (
+              <React.Fragment key={s.id}>
+                <div className={`flex flex-col items-center gap-2 ${
+                  paymentStep === s.step ? 'text-orange-500' : 'text-zinc-600'
+                }`}>
+                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-xs font-black transition-all ${
+                    paymentStep === s.step ? 'bg-orange-600 text-zinc-950 dark:text-white shadow-lg shadow-orange-600/20' : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-500 border border-zinc-200 dark:border-zinc-800'
+                  }`}>
+                    {s.id}
+                  </div>
+                  <span className="text-[10px] font-black uppercase tracking-widest">{s.label}</span>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setError("")}
-                  className="text-red-600 hover:bg-red-100 p-1"
-                >
-                  <X className="w-4 h-4" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+                {idx < 2 && <div className="flex-1 h-[2px] bg-zinc-100 dark:bg-zinc-900 mx-2 mt-[-20px]"></div>}
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+
+        {/* Error Display - Rebranded for High Contrast */}
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-5 flex items-start gap-4 animate-in shake">
+            <AlertCircle className="w-6 h-6 text-red-500 shrink-0" />
+            <div className="flex-1">
+              <p className="text-red-400 text-sm font-bold leading-tight">{error}</p>
+            </div>
+            <button onClick={() => setError("")} className="text-zinc-600 hover:text-zinc-950 dark:text-white">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         )}
 
-        {/* Step 1: QR Scanning */}
+        {/* Step 1: QR Scanning - Optimized for S22 */}
         {paymentStep === 'scan' && (
           <>
             {isScanning && scannerReady ? (
-              <Card className="shadow-lg">
-                <CardHeader className="bg-blue-600 text-white">
-                  <CardTitle className="flex items-center gap-2">
-                    <Scan className="w-5 h-5" />
-                    Scanning QR Code
+              <Card className="bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 shadow-2xl rounded-[2.5rem] overflow-hidden">
+                <CardHeader className="bg-orange-600 text-zinc-950 dark:text-white p-6">
+                  <CardTitle className="flex items-center gap-3 font-black uppercase italic tracking-tighter">
+                    <Scan className="w-6 h-6" /> Live Scanner
                   </CardTitle>
-                  <CardDescription className="text-blue-100">
-                    Point camera at merchant QR code
-                  </CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
-                  <div className="relative">
-                    <video
-                      ref={videoRef}
-                      className="w-full h-64 object-cover bg-black"
-                      playsInline
-                      muted
-                    />
-                    <canvas ref={canvasRef} className="hidden" />
-                    
-                    {/* Scanning overlay */}
+                  <div className="relative aspect-square md:aspect-video bg-black">
+                    <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+                    {/* Rebranded Scan Overlay */}
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="border-2 border-white border-dashed w-48 h-48 rounded-lg flex items-center justify-center">
-                        <QrCode className="w-12 h-12 text-white opacity-50" />
+                      <div className="border-2 border-orange-600 border-dashed w-56 h-56 rounded-[2rem] flex items-center justify-center bg-orange-600/5">
+                        <QrCode className="w-16 h-16 text-zinc-950 dark:text-white opacity-20" />
                       </div>
                     </div>
                   </div>
-                  
-                  <div className="p-4">
-                    <Button 
-                      variant="outline" 
-                      onClick={stopCamera}
-                      className="w-full"
-                    >
-                      <X className="w-4 h-4 mr-2" />
-                      Stop Scanning
+                  <div className="p-6">
+                    <Button onClick={stopCamera} variant="outline" className="w-full h-14 bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 text-zinc-400 rounded-2xl font-black uppercase tracking-widest">
+                      <X className="w-5 h-5 mr-2" /> Stop Scanner
                     </Button>
                   </div>
                 </CardContent>
               </Card>
             ) : (
-              /* Welcome Screen */
-              <Card className="shadow-lg">
-                <CardContent className="p-8 text-center">
-                  <div className="mb-6">
-                    <div className="bg-gradient-to-r from-green-500 to-blue-500 p-4 rounded-full w-fit mx-auto mb-4">
-                      <QrCode className="w-8 h-8 text-white" />
+              /* Welcome Screen - High-Contrast Black/Orange */
+              <Card className="bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 shadow-2xl rounded-[3rem] overflow-hidden">
+                <CardContent className="p-10 text-center space-y-8">
+                  <div className="space-y-4">
+                    <div className="bg-white dark:bg-zinc-950 p-6 rounded-[2.5rem] w-fit mx-auto border border-zinc-200 dark:border-zinc-800 shadow-inner">
+                      <QrCode className="w-12 h-12 text-orange-600" />
                     </div>
-                    <h2 className="text-2xl font-bold mb-2">Ready to Pay?</h2>
-                    <p className="text-gray-600">
-                      Scan any merchant QR code for instant M-Pesa payments
-                    </p>
+                    <h2 className="text-3xl font-black text-zinc-950 dark:text-white italic uppercase tracking-tighter">Ready to <span className="text-orange-600">Pay?</span></h2>
+                    <p className="text-zinc-500 text-sm font-medium leading-relaxed">Scan any official merchant QR for instant M-Pesa settlements.</p>
                   </div>
 
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     <Button 
                       onClick={handleUseCamera} 
-                      className="w-full bg-gradient-to-r from-green-600 to-green-700 py-4 text-lg font-semibold"
+                      className="w-full h-16 bg-orange-600 hover:bg-orange-700 text-zinc-950 dark:text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-orange-600/20 active:scale-95"
                     >
-                      <Camera className="w-5 h-5 mr-2" />
-                      Start Camera Scanning
+                      <Camera className="w-6 h-6 mr-3" /> Start Scanning
                     </Button>
-                    
-                    <Button 
-                      variant="outline" 
-                      onClick={handleTestQR}
-                      className="w-full py-3"
-                    >
-                      Try Sample QR Code
+                    <Button variant="outline" onClick={handleTestQR} className="w-full h-14 border-zinc-200 dark:border-zinc-800 text-zinc-500 rounded-2xl font-bold uppercase tracking-widest">
+                      Demo Mode
                     </Button>
                   </div>
                 </CardContent>
               </Card>
             )}
-
-            {/* Features */}
-            {!isScanning && (
-              <>
-                <div className="grid grid-cols-3 gap-4">
-                  <Card className="text-center p-4 bg-blue-50">
-                    <Zap className="w-8 h-8 text-blue-600 mx-auto mb-2" />
-                    <p className="text-xs font-semibold text-blue-800">Instant</p>
-                  </Card>
-                  <Card className="text-center p-4 bg-green-50">
-                    <Shield className="w-8 h-8 text-green-600 mx-auto mb-2" />
-                    <p className="text-xs font-semibold text-green-800">Secure</p>
-                  </Card>
-                  <Card className="text-center p-4 bg-purple-50">
-                    <Smartphone className="w-8 h-8 text-purple-600 mx-auto mb-2" />
-                    <p className="text-xs font-semibold text-purple-800">Easy</p>
-                  </Card>
-                </div>
-
-                {/* Instructions */}
-                <Card className="bg-indigo-50">
-                  <CardHeader>
-                    <CardTitle className="text-indigo-800 flex items-center gap-2">
-                      <QrCode className="w-5 h-5" />
-                      How it Works
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <div className="bg-indigo-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold">1</div>
-                      <span className="text-sm text-indigo-700">Scan merchant QR code</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="bg-indigo-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold">2</div>
-                      <span className="text-sm text-indigo-700">Enter phone number and amount</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="bg-indigo-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold">3</div>
-                      <span className="text-sm text-indigo-700">Enter M-Pesa PIN on your phone</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="bg-indigo-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold">4</div>
-                      <span className="text-sm text-indigo-700">Get instant confirmation</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </>
-            )}
           </>
         )}
 
-        {/* Step 2: Payment Details */}
+        {/* Step 2: Payment Details - Dark Mode Forms */}
         {paymentStep === 'details' && qrData && (
-          <Card className="shadow-lg">
-            <CardHeader className="bg-green-600 text-white">
-              <CardTitle className="flex items-center gap-2">
-                <CheckCircle className="w-5 h-5" />
-                QR Code Detected!
+          <Card className="bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 shadow-2xl rounded-[2.5rem] overflow-hidden">
+            <CardHeader className="bg-orange-600 text-zinc-950 dark:text-white p-6">
+              <CardTitle className="flex items-center gap-3 font-black uppercase italic tracking-tighter">
+                <CheckCircle className="w-6 h-6" /> Data Verified
               </CardTitle>
-              <CardDescription className="text-green-100">
-                Enter payment details below
-              </CardDescription>
             </CardHeader>
-            <CardContent className="p-6 space-y-6">
-              {/* Merchant Info */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <div className="flex items-center gap-3">
-                  <User className="w-5 h-5 text-gray-600" />
+            <CardContent className="p-8 space-y-8">
+              <div className="bg-white dark:bg-zinc-950 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-inner">
+                <div className="flex items-center gap-4">
+                  <div className="bg-zinc-100 dark:bg-zinc-900 p-3 rounded-2xl">
+                    <User className="w-6 h-6 text-orange-600" />
+                  </div>
                   <div>
-                    <p className="text-xs text-gray-500 uppercase">Paying To</p>
-                    <p className="font-semibold">{getMerchantDisplayName()}</p>
+                    <p className="text-[10px] text-zinc-500 font-black uppercase tracking-widest mb-1">Paying To</p>
+                    <p className="text-xl font-black text-zinc-950 dark:text-white italic">{getMerchantDisplayName()}</p>
                   </div>
                 </div>
               </div>
 
-              {/* Phone Input */}
-              <div className="space-y-2">
-                <Label htmlFor="phone">Your Phone Number</Label>
-                <Input
-                  id="phone"
-                  type="tel"
-                  placeholder="254XXXXXXXXX"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
-                  disabled={loading}
-                  className="font-mono"
-                />
-                <p className="text-xs text-gray-500">M-Pesa registered number</p>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">Your M-Pesa Number</Label>
+                  <Input
+                    type="tel"
+                    placeholder="254XXXXXXXXX"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    className="h-14 bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 rounded-2xl text-zinc-950 dark:text-white font-bold focus:border-orange-600 focus:ring-orange-600 placeholder:text-zinc-800"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">Payment Amount (KES)</Label>
+                  <Input
+                    type="number"
+                    placeholder="0.00"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    className="h-14 bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 rounded-2xl text-orange-500 font-black text-2xl focus:border-orange-600 focus:ring-orange-600"
+                  />
+                </div>
               </div>
               
-              {/* Amount Input */}
-              <div className="space-y-2">
-                <Label htmlFor="amount">Amount (KSH)</Label>
-                <Input
-                  id="amount"
-                  type="number"
-                  placeholder="0.00"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  disabled={loading}
-                  className="text-lg font-semibold"
-                />
-                {qrData.amount && (
-                  <p className="text-xs text-blue-600">
-                    Suggested: KSH {qrData.amount}
-                    <button 
-                      onClick={() => setAmount(qrData.amount.toString())}
-                      className="ml-2 underline hover:no-underline"
-                    >
-                      Use this
-                    </button>
-                  </p>
-                )}
-              </div>
-              
-              {/* Actions */}
-              <div className="flex gap-3 pt-4">
-                <Button 
-                  variant="outline" 
-                  onClick={handleStartOver}
-                  disabled={loading}
-                >
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back
+              <div className="flex gap-4 pt-4">
+                <Button variant="outline" onClick={handleStartOver} className="h-14 px-6 border-zinc-200 dark:border-zinc-800 text-zinc-500 rounded-2xl font-black uppercase">
+                  <ArrowLeft className="w-5 h-5" />
                 </Button>
-                <Button 
-                  onClick={() => setPaymentStep('confirm')}
-                  disabled={!phoneNumber || !amount || loading}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700"
-                >
-                  <CreditCard className="w-4 h-4 mr-2" />
+                <Button onClick={() => setPaymentStep('confirm')} disabled={!phoneNumber || !amount} className="flex-1 h-16 bg-orange-600 hover:bg-orange-700 text-zinc-950 dark:text-white rounded-2xl font-black uppercase tracking-widest">
                   Continue
                 </Button>
               </div>
@@ -607,81 +479,48 @@ const QRPaymentScanner = ({ onPaymentInitiated, onNavigateToLanding }) => {
           </Card>
         )}
 
-        {/* Step 3: Payment Confirmation */}
+        {/* Step 3: Payment Confirmation - Premium Tech Layout */}
         {paymentStep === 'confirm' && qrData && (
-          <Card className="shadow-lg">
-            <CardHeader className="bg-purple-600 text-white">
-              <CardTitle className="flex items-center gap-2">
-                <Lock className="w-5 h-5" />
-                Confirm Payment
+          <Card className="bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 shadow-2xl rounded-[2.5rem] overflow-hidden">
+            <CardHeader className="bg-white dark:bg-zinc-950 text-zinc-950 dark:text-white p-8 border-b border-zinc-200 dark:border-zinc-800">
+              <CardTitle className="flex items-center gap-3 font-black uppercase italic tracking-tighter text-2xl">
+                <Lock className="w-7 h-7 text-orange-600" /> Confirm
               </CardTitle>
-              <CardDescription className="text-purple-100">
-                Review details before proceeding
-              </CardDescription>
             </CardHeader>
-            <CardContent className="p-6 space-y-6">
-              {/* Payment Summary */}
-              <div className="bg-green-50 rounded-lg p-4 border border-green-200">
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Paying To:</span>
-                    <span className="font-semibold">{getMerchantDisplayName()}</span>
+            <CardContent className="p-8 space-y-8">
+              <div className="bg-orange-600/5 rounded-[2rem] p-8 border border-orange-600/20">
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center">
+                    <span className="text-zinc-500 text-xs font-bold uppercase tracking-widest">To Merchant</span>
+                    <span className="font-black text-zinc-950 dark:text-white italic">{getMerchantDisplayName()}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Your Number:</span>
-                    <span className="font-mono text-sm">{phoneNumber}</span>
-                  </div>
-                  <div className="flex justify-between border-t pt-3">
-                    <span className="text-gray-600">Total Amount:</span>
-                    <span className="text-2xl font-bold text-green-600">KSH {amount}</span>
+                  <div className="flex justify-between items-center border-t border-zinc-200 dark:border-zinc-800/50 pt-6">
+                    <span className="text-zinc-500 text-xs font-bold uppercase tracking-widest">Settlement</span>
+                    <span className="text-3xl font-black text-orange-500 tracking-tighter italic">KSH {amount}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Instructions */}
-              <Card className="bg-blue-50">
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <Smartphone className="w-5 h-5 text-blue-600 mt-1" />
-                    <div>
-                      <h4 className="font-semibold text-blue-900 mb-2">What happens next:</h4>
-                      <ol className="text-sm text-blue-800 space-y-1">
-                        <li>📱 You'll get M-Pesa notification on your phone</li>
-                        <li>🔐 Enter your M-Pesa PIN to confirm</li>
-                        <li>✅ Get instant payment confirmation</li>
-                      </ol>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="bg-white dark:bg-zinc-950 p-6 rounded-[1.5rem] border border-zinc-200 dark:border-zinc-800 flex items-start gap-4">
+                <Smartphone className="w-6 h-6 text-orange-600 mt-1" />
+                <div className="space-y-2">
+                  <h4 className="font-black text-zinc-950 dark:text-white text-[10px] uppercase tracking-widest">Next Action Required</h4>
+                  <p className="text-zinc-500 text-xs leading-relaxed">An STK push will be sent to your device. Enter your M-Pesa PIN to authorize this settlement instantly.</p>
+                </div>
+              </div>
 
-              {/* Final Actions */}
-              <div className="flex gap-3 pt-4">
-                <Button 
-                  variant="outline" 
-                  onClick={() => setPaymentStep('details')}
-                  disabled={loading}
-                >
-                  <ArrowLeft className="w-4 h-4 mr-2" />
+              <div className="flex gap-4 pt-4">
+                <Button variant="outline" onClick={() => setPaymentStep('details')} className="h-16 px-8 border-zinc-200 dark:border-zinc-800 text-zinc-500 rounded-2xl font-black uppercase">
                   Edit
                 </Button>
-                <Button 
+                <button 
                   onClick={handleConfirmPayment}
                   disabled={loading}
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-lg font-semibold"
+                  className="flex-1 h-16 bg-orange-600 hover:bg-orange-700 text-zinc-950 dark:text-white rounded-2xl font-black uppercase tracking-widest shadow-2xl shadow-orange-600/30 flex items-center justify-center gap-4 active:scale-95 transition-all"
                 >
-                  {loading ? (
-                    <div className="flex items-center gap-2">
-                      <RefreshCw className="w-5 h-5 animate-spin" />
-                      Processing...
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <Zap className="w-5 h-5" />
-                      Pay Now
-                    </div>
-                  )}
-                </Button>
+                  {loading ? <RefreshCw className="w-6 h-6 animate-spin" /> : <Zap className="w-6 h-6" />}
+                  <span className="text-lg">Authorize Pay</span>
+                </button>
               </div>
             </CardContent>
           </Card>

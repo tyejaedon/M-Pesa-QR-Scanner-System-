@@ -4,96 +4,95 @@ import { db } from "../config/firebase.js";
 async function createUserwithEmailandPaassword(req, res) {
   console.log('🚀 Backend signUp called with data:', req.body);
   
-  const { uid, email, name, phone, shortcode } = req.body;
+  const { uid, email, name, phone, shortcode, accountType, subscription } = req.body;
 
-  // Check for required fields
+  // 1. Validation
   if (!uid || !email || !name || !phone || !shortcode) {
-    console.error('❌ Missing required fields:', { uid: !!uid, email: !!email, name: !!name, phone: !!phone, shortcode: !!shortcode });
-    return res.status(400).json({ error: "All fields are required including UID" });
+    return res.status(400).json({ error: "Missing identity fields" });
   }
 
   try {
-    console.log('🔍 Checking if Firebase user exists...');
-    
-    // Verify that the Firebase user exists (they should already be created by frontend)
-    let userRecord;
+    // 2. Verify Firebase Auth Record
     try {
-      userRecord = await admin.auth().getUser(uid);
-      console.log('✅ Firebase user found:', {
-        uid: userRecord.uid,
-        email: userRecord.email,
-        displayName: userRecord.displayName
-      });
+      await admin.auth().getUser(uid);
     } catch (userError) {
-      console.error('❌ Firebase user not found:', userError);
-      return res.status(400).json({ error: "Firebase user not found. Please ensure user is created first." });
+      return res.status(400).json({ error: "Auth user not found in Firebase" });
     }
     
-    console.log('🔍 Checking if merchant already exists in Firestore...');
-    
-    // Check if merchant already exists
+    // 3. Check for Duplicate Merchant
     const existingMerchant = await db.collection("merchants").doc(uid).get();
     if (existingMerchant.exists) {
-      console.log('⚠️ Merchant already exists');
       return res.status(400).json({ error: "Merchant already registered" });
     }
 
-    console.log('💾 Storing merchant details in Firestore...');
+    // 4. PREPARE DATA
+    const trialPeriodDays = 30;
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + trialPeriodDays);
+
+    // Default to 'paybill' if missing
+    const cleanAccountType = accountType === 'till' ? 'till' : 'paybill';
     
-    // Store merchant details in Firestore using the existing Firebase UID
+    // Auto-generate safe reference for Paybills (e.g. URBANCAFE)
+    const safeRef = name.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 8);
+
     const merchantData = {
-      uid: uid,
-      email: email,
-      name: name,
-      phone: phone,
-      shortcode: shortcode,
-      status: 'active',
+      uid,
+      email,
+      name,
+      phone,
+      shortcode,
+      
+      // Payment Config
+      accountType: cleanAccountType,
+      accountReference: safeRef,
+
+      // Subscription
+      subscription: {
+        tier: subscription?.tier?.toUpperCase() || 'BASIC',
+        status: 'TRIALING',
+        expiry: admin.firestore.Timestamp.fromDate(expiryDate)
+      },
+
+      // Addons
+      addons: {
+        menuEnabled: subscription?.addons?.includes('menu') || false,
+        menuTrialEnd: admin.firestore.Timestamp.fromDate(expiryDate)
+      },
+
+      // Metadata (REMOVED environment TO FIX CRASH)
+      metadata: {
+        isBoarded: true,
+        lastLogin: admin.firestore.FieldValue.serverTimestamp(),
+        platform: 'web-v1'
+      },
+
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
-    
-    // Use set with merge: false to ensure clean write
+
+    // 5. Atomic Write
     await db.collection("merchants").doc(uid).set(merchantData);
 
-    console.log('✅ Merchant stored in Firestore successfully');
-    
-    // Verify the document was actually created
-    const verifyDoc = await db.collection("merchants").doc(uid).get();
-    if (!verifyDoc.exists) {
-      throw new Error("Merchant document was not created successfully");
-    }
-    
-    console.log('✅ Verified merchant document exists:', verifyDoc.data());
+    console.log(`✅ Merchant ${name} registered successfully.`);
 
     res.status(201).json({ 
       message: "Merchant registered successfully", 
-      uid: uid,
-      merchant: {
-        uid,
-        email,
-        name,
-        phone,
-        shortcode
-      },
-      verified: true
+      uid,
+      tier: merchantData.subscription.tier,
+      type: cleanAccountType
     });
 
   } catch (error) {
-    console.error('❌ Backend registration error:', error);
+    console.error('❌ Registration Failure:', error);
     
-    // If Firestore write failed, attempt to clean up Firebase user
+    // Rollback Auth
     try {
-      console.log('🧹 Attempting to clean up Firebase user due to backend error...');
       await admin.auth().deleteUser(uid);
-      console.log('✅ Cleaned up Firebase user due to backend error');
-    } catch (cleanupError) {
-      console.error('❌ Failed to cleanup Firebase user:', cleanupError);
-    }
-    
-    res.status(500).json({ 
-      error: `Failed to register merchant: ${error.message}`,
-      details: error.code ? `Error code: ${error.code}` : 'Internal server error'
-    });
+      console.log('⚠️ Rolled back Auth user creation');
+    } catch (e) { /* user might not exist */ }
+
+    res.status(500).json({ error: error.message });
   }
 }
 

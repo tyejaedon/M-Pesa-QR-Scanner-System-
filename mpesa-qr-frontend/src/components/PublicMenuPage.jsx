@@ -75,53 +75,73 @@ const PublicMenuPage = () => {
         </div>
     );
 
-    return (
-        <div className="min-h-screen bg-gray-50 pb-20 relative">
-            {/* Header */}
-            <div className="bg-white px-6 py-8 shadow-sm text-center">
-                <div className="bg-blue-600 w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg">
-                    <Utensils className="text-white w-6 h-6" />
+return (
+        // Rebranded: Deep Zinc background for that modern "OLED-ready" look
+        <div className="min-h-screen bg-white dark:bg-zinc-950 pb-24 relative selection:bg-orange-600/30">
+            
+            {/* Header: High Contrast Black & Orange */}
+            <div className="bg-zinc-100 dark:bg-zinc-900 px-6 py-10 shadow-2xl border-b border-zinc-200 dark:border-zinc-800 text-center">
+                <div className="bg-orange-600 w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-xl shadow-orange-600/20 animate-in zoom-in-75 duration-500">
+                    <Utensils className="text-zinc-950 dark:text-white w-7 h-7" />
                 </div>
-                <h1 className="text-2xl font-black text-gray-900 tracking-tight">Digital Menu</h1>
-                <p className="text-gray-500 text-sm">Tap an item to pay instantly</p>
+                <h1 className="text-3xl font-black text-zinc-950 dark:text-white tracking-tighter uppercase italic italic">
+                    Digital <span className="text-orange-600">Menu</span>
+                </h1>
+                <p className="text-zinc-500 text-xs font-bold uppercase tracking-[0.2em] mt-1">
+                    Select & Pay with M-Pesa
+                </p>
             </div>
 
-            <div className="max-w-2xl mx-auto p-4 mt-4">
-                {/* Reusing MenuView with an onItemClick handler */}
+            <div className="max-w-2xl mx-auto p-4 mt-6">
+                {/* Reusing the Rebranded MenuView with Orange accents */}
                 <MenuView 
                     items={menuData} 
                     onItemClick={(item) => item.isAvailable && setSelectedItem(item)} 
                 />
             </div>
 
-            {/* --- PAYMENT MODAL --- */}
+            {/* --- REBRANDED PAYMENT MODAL --- */}
             {selectedItem && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end md:items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-md rounded-t-[32px] md:rounded-[32px] p-8 shadow-2xl animate-in slide-in-from-bottom-10 duration-300">
-                        <div className="flex justify-between items-start mb-6">
+                <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-end md:items-center justify-center p-4">
+                    {/* Modal Card: Deep Zinc with White/Orange highlights */}
+                    <div className="bg-zinc-100 dark:bg-zinc-900 w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl border border-zinc-200 dark:border-zinc-800 animate-in slide-in-from-bottom-10 duration-300">
+                        <div className="flex justify-between items-start mb-8">
                             <div>
-                                <h3 className="text-xl font-black text-gray-900">{selectedItem.name}</h3>
-                                <p className="text-blue-600 font-bold text-lg">KES {selectedItem.price}</p>
+                                <p className="text-[10px] font-black text-orange-600 uppercase tracking-widest mb-1">Confirm Order</p>
+                                <h3 className="text-2xl font-black text-zinc-950 dark:text-white tracking-tight">{selectedItem.name}</h3>
+                                <p className="text-zinc-950 dark:text-white font-black text-2xl mt-1 italic tracking-tighter">
+                                    KES {selectedItem.price}
+                                </p>
                             </div>
-                            <button onClick={() => setSelectedItem(null)} className="p-2 bg-gray-100 rounded-full">
-                                <X className="w-5 h-5 text-gray-500" />
+                            <button 
+                                onClick={() => setSelectedItem(null)} 
+                                className="p-3 bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 rounded-2xl hover:bg-zinc-700 transition-colors"
+                            >
+                                <X className="w-5 h-5" />
                             </button>
                         </div>
 
-                        <div className="space-y-4">
-                            <div>
-                                <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">M-Pesa Phone Number</label>
+                        <div className="space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-[10px] uppercase font-black text-zinc-500 ml-1 tracking-widest">
+                                    M-Pesa Phone Number
+                                </label>
                                 <input 
                                     type="tel"
-                                    placeholder="0712345678"
+                                    placeholder="07XXXXXXXX"
                                     value={phoneNumber}
                                     onChange={(e) => setPhoneNumber(e.target.value)}
-                                    className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-lg"
+                                    // High contrast dark input
+                                    className="w-full p-5 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-zinc-950 dark:text-white font-black text-xl outline-none focus:border-orange-600 transition-all placeholder:text-zinc-800"
                                 />
                             </div>
 
                             {paymentStatus.msg && (
-                                <div className={`p-4 rounded-xl text-sm font-medium ${paymentStatus.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                                <div className={`p-4 rounded-2xl text-xs font-bold uppercase tracking-wide animate-in fade-in ${
+                                    paymentStatus.type === 'success' 
+                                    ? 'bg-orange-600/10 text-orange-500 border border-orange-600/20' 
+                                    : 'bg-red-500/10 text-red-500 border border-red-500/20'
+                                }`}>
                                     {paymentStatus.msg}
                                 </div>
                             )}
@@ -129,12 +149,25 @@ const PublicMenuPage = () => {
                             <button 
                                 onClick={handleProcessPayment}
                                 disabled={isProcessing}
-                                className={`w-full py-4 rounded-2xl font-black text-white shadow-lg flex items-center justify-center gap-3 transition-all active:scale-95 ${isProcessing ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'}`}
+                                // The "Action Orange" Button
+                                className={`w-full py-5 rounded-[1.5rem] font-black text-zinc-950 dark:text-white uppercase tracking-widest shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-3 ${
+                                    isProcessing 
+                                    ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' 
+                                    : 'bg-orange-600 hover:bg-orange-700 shadow-orange-600/20'
+                                }`}
                             >
-                                {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Smartphone className="w-5 h-5" />}
-                                {isProcessing ? 'Sending Request...' : 'Pay with M-Pesa'}
+                                {isProcessing ? (
+                                    <Loader2 className="w-6 h-6 animate-spin" />
+                                ) : (
+                                    <Smartphone className="w-6 h-6" />
+                                )}
+                                <span className="text-lg">{isProcessing ? 'Processing...' : 'Pay with M-Pesa'}</span>
                             </button>
                         </div>
+
+                        <p className="text-center text-[10px] font-bold text-zinc-600 uppercase tracking-widest mt-8">
+                            Secure payment powered by M-Pesa Daraja
+                        </p>
                     </div>
                 </div>
             )}

@@ -2,12 +2,12 @@ import React from 'react';
 
 /**
  * Card Component
- * A flexible container with optional shadow and border.
+ * Optimized for AMOLED depth and high-contrast FinTech UIs.
  */
 export const Card = ({ children, className = '', ...props }) => {
   return (
     <div
-      className={`bg-white shadow-lg rounded-lg border border-gray-200 overflow-hidden ${className}`}
+      className={`bg-zinc-100 dark:bg-zinc-900 shadow-2xl rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800/50 overflow-hidden transition-all duration-300 hover:border-orange-600/30 ${className}`}
       {...props}
     >
       {children}
@@ -17,12 +17,12 @@ export const Card = ({ children, className = '', ...props }) => {
 
 /**
  * CardHeader Component
- * Used at the top of a card for titles and actions.
+ * Clean separation with uppercase metadata styling.
  */
 export const CardHeader = ({ children, className = '', ...props }) => {
   return (
     <div 
-      className={`px-6 py-4 border-b border-gray-100 ${className}`} 
+      className={`px-8 py-6 border-b border-zinc-200 dark:border-zinc-800/50 bg-zinc-100 dark:bg-zinc-900/50 ${className}`} 
       {...props}
     >
       {children}
@@ -32,12 +32,12 @@ export const CardHeader = ({ children, className = '', ...props }) => {
 
 /**
  * CardContent Component
- * The main body area of the card.
+ * Generous padding for high-end mobile readability.
  */
 export const CardContent = ({ children, className = '', ...props }) => {
   return (
     <div 
-      className={`px-6 py-4 ${className}`} 
+      className={`px-8 py-6 ${className}`} 
       {...props}
     >
       {children}
@@ -47,12 +47,12 @@ export const CardContent = ({ children, className = '', ...props }) => {
 
 /**
  * CardTitle Component
- * Standardized typography for card headings.
+ * Bold, italicized, and aggressive FinTech typography.
  */
 export const CardTitle = ({ children, className = '', ...props }) => {
   return (
     <h3 
-      className={`text-lg font-bold text-gray-900 leading-tight ${className}`} 
+      className={`text-xl font-black text-zinc-950 dark:text-white italic uppercase tracking-tighter leading-none ${className}`} 
       {...props}
     >
       {children}
@@ -62,12 +62,12 @@ export const CardTitle = ({ children, className = '', ...props }) => {
 
 /**
  * CardDescription Component
- * Secondary text for providing context within a card.
+ * High-contrast secondary text for technical context.
  */
 export const CardDescription = ({ children, className = '', ...props }) => {
   return (
     <p 
-      className={`text-sm text-gray-500 mt-1 ${className}`} 
+      className={`text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 mt-2 ${className}`} 
       {...props}
     >
       {children}

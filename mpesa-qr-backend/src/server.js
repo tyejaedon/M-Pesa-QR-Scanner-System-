@@ -50,10 +50,7 @@ app.use('/api/daraja', darajaRoutes);      // M-Pesa routes
 app.use('/api/transactions', transactionRoutes); // Transaction routes
 app.use('/api/menu', menuRoutes);         // Menu management routes
 
-// Legacy routes for backwards compatibility
-app.use('/auth', authRoutes);
-app.use('/daraja', darajaRoutes);
-app.use('/transactions', transactionRoutes);
+
 
 app.get('/', (req, res) => {
   res.json({ 
