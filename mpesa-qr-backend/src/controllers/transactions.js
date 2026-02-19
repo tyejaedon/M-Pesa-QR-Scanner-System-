@@ -397,9 +397,9 @@ function calculateTrend(dataPoints) {
 
 
 // ENHANCED: Transaction analytics with QR insights
-async function getTransactionAnalytics (req, res){
+async function getTransactionAnalytics(req, res) {
   try {
-    const merchantId = req.user.uid; // Assumes auth middleware populates req.user
+    const merchantId = req.user.uid;
     const { 
       period = 'week', 
       status,           
@@ -411,9 +411,8 @@ async function getTransactionAnalytics (req, res){
     // 1. DATE RANGE CALCULATION
     const now = new Date();
     let queryStartDate = new Date();
-    let queryEndDate = new Date(); // Defaults to now
+    let queryEndDate = new Date(); 
 
-    // Reset end date to end of today
     queryEndDate.setHours(23, 59, 59, 999);
 
     switch (period) {
@@ -421,7 +420,6 @@ async function getTransactionAnalytics (req, res){
         queryStartDate.setHours(0, 0, 0, 0);
         break;
       case 'week':
-        // Last 7 days
         queryStartDate.setDate(now.getDate() - 7);
         queryStartDate.setHours(0, 0, 0, 0);
         break;
@@ -433,25 +431,21 @@ async function getTransactionAnalytics (req, res){
         queryStartDate.setFullYear(now.getFullYear() - 1);
         break;
       default:
-        // Default to week if unknown
         queryStartDate.setDate(now.getDate() - 7);
     }
 
     // 2. FIRESTORE QUERIES
-    // We need both direct transactions and "Guest" transactions linked to this merchant
     const startTimestamp = admin.firestore.Timestamp.fromDate(queryStartDate);
     const endTimestamp = admin.firestore.Timestamp.fromDate(queryEndDate);
 
     const transactionsRef = db.collection('transactions');
 
-    // Query A: Direct Merchant Transactions
     const directQuery = transactionsRef
       .where('merchantId', '==', merchantId)
       .where('createdAt', '>=', startTimestamp)
       .where('createdAt', '<=', endTimestamp)
       .get();
 
-    // Query B: Guest Transactions (where originalMerchantId matches)
     const guestQuery = transactionsRef
       .where('guestMerchantInfo.originalMerchantId', '==', merchantId)
       .where('createdAt', '>=', startTimestamp)
@@ -466,72 +460,69 @@ async function getTransactionAnalytics (req, res){
       ...guestSnapshot.docs.filter(gDoc => !directSnapshot.docs.some(dDoc => dDoc.id === gDoc.id))
     ];
 
-    // Map to clean objects
     let transactions = allDocs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-    // Apply Status Filter (if requested)
     if (status && status !== 'all') {
       transactions = transactions.filter(t => t.status === status);
     }
 
-    // Sort by Date (Oldest to Newest) - Critical for Analytics/Charts
-    transactions.sort((a, b) => new Date(a.createdAt.toDate()) - new Date(b.createdAt.toDate()));
+    // Sort Newest to Oldest for the UI List, but we will handle chronological for charts later
+    transactions.sort((a, b) => {
+        const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+        const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+        return dateB - dateA; 
+    });
 
     // 4. AGGREGATION & ANALYTICS LOOP
     let totalRevenue = 0;
     let qrRevenue = 0;
     
-    // Arrays for counting
     const successfulTransactions = [];
     const pendingTransactions = [];
     const failedTransactions = [];
     
-    // QR Counters
     let qrCount = 0;
     let customerScannedCount = 0;
     let merchantGeneratedCount = 0;
 
-    // Daily Summary Map (Key: "YYYY-MM-DD")
     const dailyMap = {};
-
-    // Initialize daily map with 0s for every day in range (so charts don't have gaps)
     for (let d = new Date(queryStartDate); d <= queryEndDate; d.setDate(d.getDate() + 1)) {
       const dateKey = d.toISOString().split('T')[0];
       dailyMap[dateKey] = { date: dateKey, totalRevenue: 0, count: 0 };
     }
 
-    // Hourly Heatmap Array (0-23)
     const hoursMap = new Array(24).fill(0);
 
-    // --- MAIN LOOP ---
+    // FIX: Moved the arrays outside the loop, now iterate properly
     transactions.forEach(t => {
-      // Basic Buckets
       if (t.status === 'success') successfulTransactions.push(t);
       else if (t.status === 'pending') pendingTransactions.push(t);
       else failedTransactions.push(t);
 
-      // Only calculate Math/Revenue on SUCCESSFUL transactions
       if (t.status === 'success') {
         const amount = Number(t.amount) || 0;
         totalRevenue += amount;
 
-        // Date Handling
-        // Use t.createdAt.toDate() because it's a Firestore Timestamp
-        const dateObj = t.createdAt.toDate(); 
+        // Safe Date Extraction
+        let dateObj = new Date();
+        if (t.createdAt?.toDate) {
+            dateObj = t.createdAt.toDate();
+        } else if (t.createdAt) {
+            dateObj = new Date(t.createdAt);
+        }
+        
         const dateKey = dateObj.toISOString().split('T')[0];
         const hour = dateObj.getHours();
 
-        // 1. Hourly Heatmap
         hoursMap[hour]++;
 
-        // 2. Daily Summaries
         if (dailyMap[dateKey]) {
           dailyMap[dateKey].totalRevenue += amount;
           dailyMap[dateKey].count++;
         }
 
-        // 3. QR Analytics
-        const isQR = t.qrMetadata?.hasQRData || t.source?.includes('qr');
+        const isQR = t.qrMetadata?.hasQRData || (t.source && typeof t.source === 'string' && t.source.toLowerCase().includes('qr'));
+        
         if (isQR) {
           qrRevenue += amount;
           qrCount++;
@@ -542,19 +533,14 @@ async function getTransactionAnalytics (req, res){
     });
 
     // 5. INTELLIGENCE PROCESSING
-    
-    // A. Peak Time Label
     const peakHourIndex = hoursMap.indexOf(Math.max(...hoursMap));
     const peakTimeLabel = `${peakHourIndex.toString().padStart(2, '0')}:00 - ${(peakHourIndex + 1).toString().padStart(2, '0')}:00`;
 
-    // B. Linear Regression (Prediction)
-    // Convert dailyMap to array and sort chronological
     const sortedSummaries = Object.values(dailyMap).sort((a, b) => new Date(a.date) - new Date(b.date));
     
-    // Create X,Y Points
     const regressionPoints = sortedSummaries.map((day, index) => ({
-      x: index + 1,        // Day 1, Day 2...
-      y: day.totalRevenue  // Revenue that day
+      x: index + 1,
+      y: day.totalRevenue
     }));
 
     const predictionModel = calculateTrend(regressionPoints);
@@ -566,57 +552,45 @@ async function getTransactionAnalytics (req, res){
         start: queryStartDate.toISOString(),
         end: queryEndDate.toISOString()
       },
-      
-      // Standard Metrics
       summary: {
         totalTransactions: transactions.length,
         successfulTransactions: successfulTransactions.length,
         pendingTransactions: pendingTransactions.length,
         failedTransactions: failedTransactions.length,
         totalRevenue,
-        successRate: transactions.length > 0 
-          ? ((successfulTransactions.length / transactions.length) * 100).toFixed(1) 
-          : 0,
-        averageTransaction: successfulTransactions.length > 0 
-          ? (totalRevenue / successfulTransactions.length).toFixed(2) 
-          : 0
+        successRate: transactions.length > 0 ? ((successfulTransactions.length / transactions.length) * 100).toFixed(1) : 0,
+        averageTransaction: successfulTransactions.length > 0 ? (totalRevenue / successfulTransactions.length).toFixed(2) : 0
       },
-
-      // The "Elite" Intelligence Block
       insights: {
         peakTradingHour: peakTimeLabel,
         peakTradingVolume: Math.max(...hoursMap),
-        hourlyDistribution: hoursMap, // [0, 2, 5, 12...] for heatmap charts
-        
+        hourlyDistribution: hoursMap,
         prediction: {
           model: "Linear Regression",
-          trendDirection: predictionModel.trend, // 'growth', 'decline', 'stable'
+          trendDirection: predictionModel.trend,
           nextDayRevenue: Math.round(predictionModel.nextPeriodPrediction),
           confidenceLevel: regressionPoints.filter(p => p.y > 0).length >= 3 ? "high" : "low"
         }
       },
-
-      // QR Specifics
       qrAnalytics: includeQRMetrics === 'true' ? {
         totalQRTransactions: qrCount,
         qrRevenue,
         nonQrRevenue: totalRevenue - qrRevenue,
-        qrAdoptionRate: transactions.length > 0 
-          ? ((qrCount / transactions.length) * 100).toFixed(1) 
-          : 0,
+        qrAdoptionRate: transactions.length > 0 ? ((qrCount / transactions.length) * 100).toFixed(1) : 0,
         breakdown: {
           customerScanned: customerScannedCount,
           merchantGenerated: merchantGeneratedCount
         }
       } : null,
-
-      // Chart Data
       dailySummaries: sortedSummaries
     };
 
+    
+
     res.status(200).json({
       status: 'success',
-      analytics: analyticsData
+      analytics: analyticsData,
+      transactions: transactions // <--- 🔥 THE MISSING LINK IS NOW HERE
     });
 
   } catch (error) {
@@ -627,7 +601,8 @@ async function getTransactionAnalytics (req, res){
       error: error.message
     });
   }
-};
+}
+
 // ENHANCED: Get single transaction with QR metadata
 async function getTransactionById(req, res) {
   const { transactionId } = req.params;

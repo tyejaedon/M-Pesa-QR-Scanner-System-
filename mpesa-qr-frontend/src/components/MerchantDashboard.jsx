@@ -56,7 +56,7 @@ const MerchantDashboard = () => {
   const navigate = useNavigate();
 
   const [analytics, setAnalytics] = useState(null);
-  const [transactions, setTransactions] = useState([]);
+  const [transactions, setTransactions] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [period, setPeriod] = useState('week');
@@ -133,7 +133,11 @@ const MerchantDashboard = () => {
     URL.revokeObjectURL(url);
   };
 
-const fetchAnalytics = async () => {
+
+
+
+
+  const fetchAnalytics = async () => {
     // 1. Bulletproof Auth Check
     // Instead of localStorage, we check the 'user' object from useAuth()
     if (!user) {
@@ -167,7 +171,7 @@ const fetchAnalytics = async () => {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
-            'ngrok-skip-browser-warning': 'true' 
+            'ngrok-skip-browser-warning': 'true'
           }
         }
       );
@@ -175,30 +179,35 @@ const fetchAnalytics = async () => {
       console.log('Raw API Response:', response.data);
 
       // 4. DATA PROCESSING
-      if (response.data.status === 'success' && response.data.analytics) {
-        const analyticsData = response.data.analytics;
+      if (response.data.status === 'success') {
 
-        setAnalytics(analyticsData);
-        processChartData(analyticsData);
+        // A. Extract and set the Analytics Object (for your charts/cards)
+        if (response.data.analytics) {
+          const analyticsData = response.data.analytics;
+          setAnalytics(analyticsData);
 
-        // Map transactions from the nested analytics object
-        setTransactions(analyticsData.transactions || []);
-
-        if ((analyticsData.transactions || []).length === 0) {
-          console.log('No transactions found for current filters.');
+          if (typeof processChartData === 'function') {
+            processChartData(analyticsData);
+          }
         }
-      } else {
-        setError('No analytics data found.');
-        setTransactions([]);
+
+        // B. Extract and set the Transactions Array (for your list/table)
+        // This is the missing piece that fixes the blank list issue!
+        if (response.data.transactions) {
+          setTransactions(response.data.transactions);
+        } else {
+          setTransactions([]); // Safe fallback
+        }
+
       }
     } catch (err) {
       console.error('Analytics fetch error:', err);
-      
+
       // Handle 401 specifically to help you debug auth issues
       if (err.response?.status === 401) {
         setError('Session expired or unauthorized. Please re-login.');
       } else {
-        const errorMessage = err.response?.data?.error || 'Failed to fetch analytics data';
+        const errorMessage = err.response?.data?.error || err.response?.data?.message || 'Failed to fetch analytics data';
         setError(errorMessage);
       }
     } finally {
@@ -252,11 +261,11 @@ const fetchAnalytics = async () => {
     navigate('/payment-scanner');
   };
 
-useEffect(() => {
-  if (user) {
-    fetchAnalytics();
-  }
-}, [user, status, period]); // Refetch when user logs in or filters change
+  useEffect(() => {
+    if (user) {
+      fetchAnalytics();
+    }
+  }, [user, status, period]); // Refetch when user logs in or filters change
 
   useEffect(() => {
     if (showDebug && !debugData) {
@@ -518,6 +527,7 @@ useEffect(() => {
         </SubscriptionShield>
 
         {/* Content Navigation - Tabs rebranded for Dark Mode */}
+      {/* Content Navigation - Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="flex w-full overflow-x-auto bg-zinc-100 dark:bg-zinc-900 p-1.5 rounded-[1.5rem] no-scrollbar border border-zinc-200 dark:border-zinc-800">
             <TabsTrigger value="overview" className="flex-1 py-4 text-[10px] font-black uppercase tracking-widest gap-2 data-[state=active]:bg-orange-600 data-[state=active]:text-zinc-950 dark:text-white rounded-xl transition-all">
@@ -530,118 +540,108 @@ useEffect(() => {
               <UtensilsCrossed className="w-4 h-4" /> Setup
             </TabsTrigger>
           </TabsList>
-          {/* --- WRAPPER: SUBSCRIPTION SHIELD --- */}
-          <SubscriptionShield
-            requiredTier="ELITE"
-            featureName="Elite Analytics"
-          >
-            {/* --- TAB 1: OVERVIEW (Replaced with AnalyticsModule) --- */}
 
-            <TabsContent value="overview" className="mt-6 space-y-6">
+          {/* --- TAB 1: OVERVIEW (Protected by ELITE) --- */}
+          <TabsContent value="overview" className="mt-6 space-y-6">
+            <SubscriptionShield requiredTier="ELITE" featureName="Advanced Analytics">
               <AnalyticsModule />
-            </TabsContent>
+            </SubscriptionShield>
+          </TabsContent>
 
+          {/* --- TAB 2: TRANSACTIONS (Available to BASIC & ELITE) --- */}
+          <TabsContent value="transactions" className="mt-6">
+            <Card className="bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden rounded-[2.5rem]">
+              <CardHeader className="p-6 border-b border-zinc-200 dark:border-zinc-800/50">
+                <CardTitle className="text-xs font-black uppercase tracking-[0.3em] flex items-center gap-3 text-zinc-400">
+                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                  Live Order Feed
+                </CardTitle>
+              </CardHeader>
 
-            {/* --- TAB 2: TRANSACTIONS (Live Orders) --- */}
-            <TabsContent value="transactions" className="mt-6">
-              <Card className="bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden rounded-[2.5rem]">
-                <CardHeader className="p-6 border-b border-zinc-200 dark:border-zinc-800/50">
-                  <CardTitle className="text-xs font-black uppercase tracking-[0.3em] flex items-center gap-3 text-zinc-400">
-                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                    Live Order Feed
-                  </CardTitle>
-                </CardHeader>
+              <CardContent className="p-0">
+                {transactions && transactions.length > 0 ? (
+                  <div className="divide-y divide-zinc-200 dark:divide-zinc-800/50">
+                    {transactions.slice(0, 10).map((transaction, idx) => {
+                      const isSuccess = transaction.status?.toLowerCase() === 'success';
 
-                <CardContent className="p-0">
-                  {/* 1. SAFETY CHECK: Ensure we actually have a list to map */}
-                  {analytics && analytics.transactions && analytics.transactions.length > 0 ? (
+                      let timeValue = null;
+                      if (transaction.createdAt && transaction.createdAt._seconds) {
+                        timeValue = transaction.createdAt._seconds * 1000;
+                      } else if (transaction.createdAt) {
+                        timeValue = transaction.createdAt;
+                      }
 
-                    <div className="divide-y divide-zinc-200 dark:divide-zinc-800/50">
-                      {/* 2. MAP: Slice the first 10 items */}
-                      {analytics.transactions.slice(0, 10).map((transaction, idx) => {
+                      const dateStr = timeValue
+                        ? new Date(timeValue).toLocaleDateString('en-KE', {
+                          month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                        })
+                        : 'Just Now';
 
-                        // 3. INLINE HELPERS (Prevents "undefined function" errors)
-                        const isSuccess = transaction.status?.toLowerCase() === 'success';
-                        const dateStr = transaction.createdAt
-                          ? new Date(transaction.createdAt).toLocaleDateString('en-KE', {
-                            month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-                          })
-                          : 'Just Now';
-                        const amountStr = Number(transaction.amount).toLocaleString();
+                      const amountStr = Number(transaction.amount).toLocaleString();
 
-                        return (
-                          <div
-                            key={transaction.id || idx}
-                            className="p-5 flex items-center justify-between hover:bg-zinc-200 dark:hover:bg-zinc-800/50 transition-colors group"
-                          >
-                            {/* --- LEFT: ICON & DETAILS --- */}
-                            <div className="flex items-center gap-4 overflow-hidden">
-                              <div className={`p-3 rounded-2xl transition-colors ${isSuccess
-                                  ? 'bg-orange-100 dark:bg-orange-600/10 text-orange-600'
-                                  : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500'
-                                }`}>
-                                {/* Ensure DollarSign is imported from lucide-react */}
-                                <DollarSign className="w-5 h-5" />
-                              </div>
-
-                              <div className="truncate">
-                                <p className="font-black text-zinc-950 dark:text-white truncate text-sm uppercase tracking-tight group-hover:text-brand-orange transition-colors">
-                                  {transaction.phoneNumber || transaction.accountRef || 'M-Pesa Order'}
-                                </p>
-                                <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5">
-                                  {dateStr}
-                                </p>
-                              </div>
+                      return (
+                        <div
+                          key={transaction.id || idx}
+                          className="p-5 flex items-center justify-between hover:bg-zinc-200 dark:hover:bg-zinc-800/50 transition-colors group"
+                        >
+                          <div className="flex items-center gap-4 overflow-hidden">
+                            <div className={`p-3 rounded-2xl transition-colors ${isSuccess
+                                ? 'bg-orange-100 dark:bg-orange-600/10 text-orange-600'
+                                : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500'
+                              }`}>
+                              <DollarSign className="w-5 h-5" />
                             </div>
 
-                            {/* --- RIGHT: AMOUNT & STATUS --- */}
-                            <div className="text-right shrink-0">
-                              <p className="font-black text-zinc-950 dark:text-white text-lg italic tracking-tighter">
-                                KES {amountStr}
+                            <div className="truncate">
+                              <p className="font-black text-zinc-950 dark:text-white truncate text-sm uppercase tracking-tight group-hover:text-brand-orange transition-colors">
+                                {transaction.phoneNumber || transaction.accountRef || 'M-Pesa Order'}
                               </p>
-
-                              {/* Status Badge (Inline Logic) */}
-                              <div className="scale-[0.8] origin-right mt-1">
-                                <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${isSuccess
-                                    ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
-                                    : transaction.status === 'pending'
-                                      ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400'
-                                      : 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
-                                  }`}>
-                                  {transaction.status || 'UNKNOWN'}
-                                </span>
-                              </div>
+                              <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5">
+                                {dateStr}
+                              </p>
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>
 
-                  ) : (
-                    /* --- EMPTY STATE --- */
-                    <div className="text-center py-24 px-6 bg-zinc-50 dark:bg-zinc-900/50">
-                      <Search className="w-16 h-16 text-zinc-300 dark:text-zinc-800 mx-auto mb-5" />
-                      <p className="font-black text-zinc-400 dark:text-zinc-600 uppercase tracking-widest text-xs">
-                        Awaiting First Transaction
-                      </p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
+                          <div className="text-right shrink-0">
+                            <p className="font-black text-zinc-950 dark:text-white text-lg italic tracking-tighter">
+                              KES {amountStr}
+                            </p>
 
-            {/* --- TAB 3: MENU MODULE (Add-on) --- */}
-            <TabsContent value="menu" className="mt-6">
-              {/* Ensure 'user' is available from useAuth() before passing uid */}
+                            <div className="scale-[0.8] origin-right mt-1">
+                              <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${isSuccess
+                                  ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
+                                  : transaction.status === 'pending'
+                                    ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400'
+                                    : 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                                }`}>
+                                {transaction.status || 'UNKNOWN'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-24 px-6 bg-zinc-50 dark:bg-zinc-900/50">
+                    <Search className="w-16 h-16 text-zinc-300 dark:text-zinc-800 mx-auto mb-5" />
+                    <p className="font-black text-zinc-400 dark:text-zinc-600 uppercase tracking-widest text-xs">
+                      Awaiting First Transaction
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* --- TAB 3: MENU MODULE (Protected by its own Addon logic if needed) --- */}
+          <TabsContent value="menu" className="mt-6">
+            <SubscriptionShield requiredTier="BASIC" featureName="Digital Menu">
               {user ? <MenuModule merchantId={user.uid} /> : <div className="p-4">Loading User...</div>}
-            </TabsContent>
-
-          </SubscriptionShield>
+            </SubscriptionShield>
+          </TabsContent>
 
         </Tabs>
-        <SubscriptionShield requiredTier="ELITE" featureName="Elite Analytics">
-
-        </SubscriptionShield>
       </div>
     </div>
   );

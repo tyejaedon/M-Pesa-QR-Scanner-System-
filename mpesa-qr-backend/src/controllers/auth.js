@@ -26,7 +26,7 @@ async function createUserwithEmailandPaassword(req, res) {
     }
 
     // 4. PREPARE DATA
-    const trialPeriodDays = 30;
+    const trialPeriodDays = 7; // 7-day trial
     const expiryDate = new Date();
     expiryDate.setDate(expiryDate.getDate() + trialPeriodDays);
 

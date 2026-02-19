@@ -2,9 +2,9 @@
 
 // 1. ROBUST URL RESOLUTION
 // We check for the variable you actually set (REACT_APP_API_URL)
-// If that fails, we fallback to the IP you provided: http://192.168.100.10:5000
+// If that fails, we fallback to the IP you provided: http://192.168.100.76:5000
 const ENV_URL = process.env.REACT_APP_API_URL || process.env.REACT_APP_BACKEND_URL;
-const FALLBACK_URL = "http://192.168.100.10:5000";
+const FALLBACK_URL = "http://192.168.100.76:5000";
 
 // Remove trailing slashes to prevent double slash errors (e.g. //api)
 export const API_BASE_URL = (ENV_URL || FALLBACK_URL).replace(/\/$/, "");
