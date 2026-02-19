@@ -1,0 +1,23 @@
+# Node modules
+node_modules/
+
+# Environment variables and secrets
+.env
+src/config/serviceAccountKey.json
+mpesa-qr-backend/src/config/serviceAccountKey.json
+qr-payment-8a0f0-firebase-adminsdk*.json
+
+# Secrets and Credentials
+
+!package.json
+!package-lock.json
+.env
+mpesa-qr-backend/src/qr-payment-adminsdk.json
+.env
+node_modules/
+
+# Node modules
+node_modules/
+# Firebase cache
+.firebase/
+*.log
