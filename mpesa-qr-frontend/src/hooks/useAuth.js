@@ -1,10 +1,9 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { 
-  onAuthStateChanged as firebaseOnAuthStateChanged, 
-  signOut as firebaseSignOut 
+import React, { createContext, useContext, useMemo, useState, useEffect } from 'react';
+import {
+  onAuthStateChanged as firebaseOnAuthStateChanged,
+  signOut as firebaseSignOut
 } from "firebase/auth";
-// Ensure this path points to your refined firebase.js
-import { auth } from '../firebase'; 
+import { auth } from '../firebase';
 import axios from 'axios';
 import { API_BASE_URL } from '../utility/constants';
 
@@ -20,45 +19,52 @@ export function AuthProvider({ children }) {
   const [merchantData, setMerchantData] = useState(null);
 
   useEffect(() => {
-    const unsubscribe = firebaseOnAuthStateChanged(auth, async (currentUser) => {
-      // 1. Set the Firebase Auth user first
+    const unsubscribe = firebaseOnAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      
-      if (currentUser) {
-        try {
-          const idToken = await currentUser.getIdToken();
-          // 2. Verify with your backend to get Merchant details (Shortcode, etc.)
-          const response = await axios.post(
-            `${API_BASE_URL}/api/auth/verify-token`,
-            { idToken },
-            {
-              headers: {
-                'Authorization': `Bearer ${idToken}`,
-                'Content-Type': 'application/json',
-                'ngrok-skip-browser-warning': 'true'
-              }
-            }
-          );
-          
-          if (response.data?.user) {
-            setMerchantData(response.data.user);
-          }
-        } catch (error) {
-          console.error('Error fetching merchant data:', error);
-          // If the backend fails, the user is 'authenticated' but has no 'merchantData'
-          // This is where your 'Self-Healing' logic lives!
-          setMerchantData(null);
-        }
-      } else {
+      // If no user is logged in, kill the loading state immediately
+      if (!currentUser) {
         setMerchantData(null);
+        setLoading(false);
       }
-      
-      // 3. Finalize loading
-      setLoading(false);
     });
-
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    const fetchMerchantProfile = async () => {
+      // 1. Only fetch if we have a Firebase session but no local profile yet
+      if (!user) return;
+
+      try {
+        const idToken = await user.getIdToken();
+
+        // 2. This hits your updated backend that now returns the FULL Firestore doc
+        const response = await axios.get( // Changed to GET
+          `${API_BASE_URL}/api/auth/profile`, // Changed to /profile
+          {
+            headers: {
+              'Authorization': `Bearer ${idToken}`,
+              'ngrok-skip-browser-warning': 'true'
+            }
+          }
+        );
+
+        // 3. Update merchantData with the comprehensive profile from the backend
+        if (response.data?.success && response.data?.user) {
+          setMerchantData(response.data.user);
+        }
+      } catch (error) {
+        console.error('⚠️ Merchant Profile Fetch Failed:', error.response?.data || error.message);
+        // Fallback: If backend fails, we keep the user but set merchantData to null
+        setMerchantData(null);
+      } finally {
+        // 4. Critical: Only set loading to false AFTER the profile attempt
+        setLoading(false);
+      }
+    };
+
+    fetchMerchantProfile();
+  }, [user]);
 
   const logout = async () => {
     try {
@@ -66,26 +72,17 @@ export function AuthProvider({ children }) {
       setMerchantData(null);
       setUser(null);
     } catch (error) {
-      console.error('Error logging out:', error);
+      console.error('Logout error:', error);
     }
   };
 
-  const value = {
+  const value = useMemo(() => ({
     user,
-    loading,
     merchantData,
-    setMerchantData,
-    logout,
-    isAuthenticated: !!user && !!merchantData // Stronger check
-  };
+    loading,
+    setMerchantData, // Allows manual updates (e.g., after an upgrade)
+    logout
+  }), [user?.uid, merchantData, loading]);
 
-return (
-  <AuthContext.Provider value={value}>
-    {loading ? (
-       <div className="loading-screen">Loading...</div> // Stable placeholder
-    ) : (
-       children
-    )}
-  </AuthContext.Provider>
-);
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

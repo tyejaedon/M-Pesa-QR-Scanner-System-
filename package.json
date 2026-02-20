@@ -3398,6 +3398,7 @@
     }
   },
   "dependencies": {
-    "firebase": "^12.8.0"
+    "firebase": "^12.8.0",
+    "zap": "^2.1.1"
   }
 }

@@ -34,7 +34,7 @@ You must configure the following keys in your backend directory to establish con
 PORT=5000
 NODE_ENV=development
 SERVER_URL=https://your-ngrok-url.ngrok-free.dev
-FRONTEND_URL=http://localhost:3000
+FRONTEND_URL=http://10.200.223.10:3000
 
 # M-Pesa Daraja Credentials
 MPESA_CONSUMER_KEY=your_consumer_key

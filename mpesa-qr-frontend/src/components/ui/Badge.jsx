@@ -1,19 +1,37 @@
 import React from 'react';
 
 export const Badge = ({ children, variant = 'default', className = '', ...props }) => {
+  // Base: Switched to font-black and tracking-widest for that "Ledger" look
+  const baseClasses = 'inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all duration-300';
+
   const variants = {
-    default: 'bg-gray-100 text-gray-800',
-    success: 'bg-green-100 text-green-800',
-    error: 'bg-red-100 text-red-800',
-    warning: 'bg-yellow-100 text-yellow-800',
-    info: 'bg-blue-100 text-blue-800'
+    // Neutral: Slate/Zinc for metadata
+    default: 'bg-zinc-800/50 text-zinc-400 border-zinc-700',
+    
+    // Success: Sharp Emerald for completed M-Pesa payments
+    success: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+    
+    // Error: High-impact Red for failed STK pushes
+    error: 'bg-red-500/10 text-red-500 border-red-500/20',
+    
+    // Warning/Brand: Our signature Electric Orange
+    warning: 'bg-orange-600/10 text-orange-600 border-orange-600/20',
+    
+    // Info: Deep Blue for system messages
+    info: 'bg-blue-500/10 text-blue-500 border-blue-500/20'
   };
 
   return (
     <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${variants[variant]} ${className}`}
+      className={`${baseClasses} ${variants[variant]} ${className}`}
       {...props}
     >
+      {/* Small dot indicator for extra "Tech" feel */}
+      <span className={`w-1 h-1 rounded-full mr-1.5 ${
+        variant === 'success' ? 'bg-emerald-500 animate-pulse' : 
+        variant === 'warning' ? 'bg-orange-600' : 
+        variant === 'error' ? 'bg-red-500' : 'bg-current opacity-50'
+      }`} />
       {children}
     </span>
   );

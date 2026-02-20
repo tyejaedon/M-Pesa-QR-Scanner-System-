@@ -4,6 +4,7 @@ dotenv.config();
 import axios from 'axios'
 import { admin, db } from '../config/firebase.js';
 import { getTransactionByCheckoutRequestID } from './transactions.js';
+import moment from 'moment'; // For timestamp formatting in Daraja requests
 
 // Set base URL depending on environment
 const MPESA_BASE_URL =  process.env.MPESA_BASE_URL?.trim().replace(/\/+$/, "") || 'https://sandbox.safaricom.co.ke';
@@ -152,287 +153,144 @@ async function testRegister(req, res) {
 }
 
 // ENHANCED: Customer payment function with dynamic amount support
-async function triggerCustomerPayment(req, res) {
-  console.log('Customer payment initiated');
-  const { phoneNumber, amount, qrData } = req.body;
-  
-  // Validate required fields
-  if (!phoneNumber || !qrData) {
-    return res.status(400).json({
-      success: false,
-      message: 'Missing required fields: phoneNumber, qrData'
-    });
-  }
 
-  // Check if amount is provided or if it's a dynamic amount QR code
-  if (!amount && !qrData.dynamicAmount) {
-    return res.status(400).json({
-      success: false,
-      message: 'Amount is required for non-dynamic QR codes'
+async function triggerCustomerPayment(req, res) {
+  console.log('🚀 STK Push Request Initialized');
+  
+  // 1. DATA DESTRUCTURING
+  // Matches the flat object sent by your fetch() call in PayPrompt.jsx
+  const { phoneNumber, amount, merchantId, name, reference } = req.body;
+  
+  // 2. INPUT VALIDATION
+  if (!phoneNumber || !amount || !merchantId) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'Invalid payload: Phone, Amount, and Merchant ID are required' 
     });
   }
 
   try {
-    // Format phone number
-    let formattedPhone = phoneNumber.trim();
-    if (formattedPhone.startsWith('0')) {
-      formattedPhone = '254' + formattedPhone.slice(1);
-    } else if (!formattedPhone.startsWith('254')) {
+    // 3. PHONE SANITIZATION
+    let formattedPhone = phoneNumber.replace(/\D/g, '');
+    if (formattedPhone.startsWith('0')) formattedPhone = '254' + formattedPhone.slice(1);
+    if ((formattedPhone.startsWith('7') || formattedPhone.startsWith('1')) && formattedPhone.length === 9) {
       formattedPhone = '254' + formattedPhone;
     }
 
-    console.log('Formatted phone number:', formattedPhone);
-
-    // Validate phone number format
-    if (!/^254\d{9}$/.test(formattedPhone)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid phone number format. Must be 254XXXXXXXXX'
-      });
+    // --- SANDBOX SECURITY GATE ---
+    // If not in production, force the use of the Safaricom Test Number
+    /*if (process.env.NODE_ENV !== 'production' && formattedPhone !== '254708374149') {
+       return res.status(400).json({ 
+         success: false, 
+         message: 'Sandbox Error: You must use the test number 254708374149' 
+       });
     }
-
-    // Sandbox only works with test number
-    if (process.env.NODE_ENV !== 'production' && formattedPhone !== '254708374149') {
-      return res.status(400).json({
-        success: false,
-        message: 'Sandbox only works with test number 254708374149'
-      });
-    }
-
-    // Validate amount
-    const parsedAmount = parseFloat(amount);
+      */
+    const parsedAmount = Math.ceil(parseFloat(amount));
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Amount must be a positive number'
-      });
+      return res.status(400).json({ success: false, message: 'Invalid amount' });
     }
 
-    // Get access token
+    // 4. FETCH MERCHANT PROFILE
+    // We pull fresh data from Firestore to ensure the shortcode is correct
+    const merchantDoc = await db.collection('merchants').doc(merchantId).get();
+    
+    if (!merchantDoc.exists) {
+      return res.status(404).json({ success: false, message: 'Merchant not found' });
+    }
+    const merchantData = merchantDoc.data();
+
+    // 5. GENERATE AUTH & TIMESTAMP
     const accessToken = await generateAccessToken();
-    if (!accessToken) {
-      throw new Error('Failed to generate access token');
-    }
-
-    // Prepare STK push request
     const now = new Date();
-    const timestamp = now.getFullYear().toString() +
-      String(now.getMonth() + 1).padStart(2, '0') +
-      String(now.getDate()).padStart(2, '0') +
-      String(now.getHours()).padStart(2, '0') +
-      String(now.getMinutes()).padStart(2, '0') +
-      String(now.getSeconds()).padStart(2, '0');
+    const timestamp = now.toISOString().replace(/[^0-9]/g, '').slice(0, 14); 
 
+    // Password: Base64(Shortcode + Passkey + Timestamp)
     const password = Buffer.from(
       `${process.env.MPESA_SHORTCODE}${process.env.MPESA_PASSKEY}${timestamp}`
     ).toString('base64');
 
-    // Extract data from qrData
-    const { merchantId, businessName, businessShortCode } = qrData;
+    // 6. REFERENCE OPTIMIZATION (Strict M-Pesa Limits)
+    // AccountReference: Max 12 chars
+    const cleanName = (merchantData.name || 'MERCHANT').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    const safeRefName = cleanName.slice(0, 8); 
+    const timeSuffix = timestamp.slice(-4);      
+    const accountRef = `${safeRefName}${timeSuffix}`;
 
-    // CRITICAL FIX: Validate merchant exists in database
-    let isValidMerchant = false;
-    let merchantData = null;
-    
-    if (merchantId && merchantId !== `manual-${Date.now()}` && !merchantId.startsWith('qr-') && !merchantId.startsWith('manual-')) {
-      try {
-        const merchantDoc = await db.collection('merchants').doc(merchantId).get();
-        if (merchantDoc.exists) {
-          isValidMerchant = true;
-          merchantData = merchantDoc.data();
-          console.log(`Found valid merchant: ${merchantData.name} (${merchantId})`);
-        } else {
-          // Check in users collection as fallback
-          const userDoc = await admin.auth().getUser(merchantId);
-          if (userDoc) {
-            isValidMerchant = true;
-            merchantData = {
-              name: userDoc.displayName || userDoc.email?.split('@')[0],
-              email: userDoc.email,
-              uid: userDoc.uid
-            };
-            console.log(`Found valid user as merchant: ${merchantData.name} (${merchantId})`);
-          } else {
-            console.log(`Merchant not found: ${merchantId}, treating as guest transaction`);
-          }
-        }
-      } catch (error) {
-        console.log(`Error checking merchant: ${error.message}, treating as guest transaction`);
-      }
-    } else {
-      console.log(`Guest/manual transaction - merchantId: ${merchantId}`);
-    }
+    // TransactionDesc: Max 13 chars
+    const safeDesc = `Pay ${cleanName.slice(0, 9)}`;
 
+    // 7. CONSTRUCT PAYLOAD
     const stkPushData = {
-      BusinessShortCode: process.env.MPESA_SHORTCODE,
+      BusinessShortCode: process.env.MPESA_SHORTCODE, 
       Password: password,
       Timestamp: timestamp,
-      TransactionType: "CustomerPayBillOnline",
+      TransactionType: 'CustomerPayBillOnline', // Change to 'CustomerBuyGoodsOnline' if you are a Till
       Amount: parsedAmount,
       PartyA: formattedPhone,
-      PartyB: process.env.MPESA_SHORTCODE,
+      PartyB: process.env.MPESA_SHORTCODE, 
       PhoneNumber: formattedPhone,
       CallBackURL: `${process.env.SERVER_URL}/api/daraja/stk-callback`,
-      AccountReference: `QR-${merchantId}`,
-      TransactionDesc: `Payment to ${businessName || 'Merchant'}`
+      AccountReference: accountRef,
+      TransactionDesc: safeDesc
     };
 
-    console.log('STK Push request data:', stkPushData);
+    console.log("📤 Sending STK Payload:", JSON.stringify(stkPushData, null, 2));
 
-    // Send STK push request
+    // 8. GATEWAY EXECUTION
     const response = await axios.post(
-      `${MPESA_BASE_URL}/mpesa/stkpush/v1/processrequest`,
+      `${process.env.MPESA_BASE_URL}/mpesa/stkpush/v1/processrequest`,
       stkPushData,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        }
-      }
+      { headers: { 'Authorization': `Bearer ${accessToken}` } }
     );
 
-    console.log('M-Pesa STK response:', response.data);
-
+    // 9. HANDLE SUCCESS & LOG TO FIRESTORE
     if (response.data.ResponseCode === "0") {
-      //  ENHANCED: Create transaction record with proper merchant linking
-      const transactionData = {
-        // Core transaction data
-        merchantId: isValidMerchant ? merchantId : null, // Only set if valid merchant
+      
+      const transactionRecord = {
+        merchantId, 
+        merchantName: merchantData.name,
         amount: parsedAmount,
         phoneNumber: formattedPhone,
         status: 'pending',
         
-        // M-Pesa identifiers (consistent uppercase)
-        CheckoutRequestID: response.data.CheckoutRequestID,
-        MerchantRequestID: response.data.MerchantRequestID,
-        
-        // Transaction reference
-        transactionRef: `CUST_${timestamp}`,
-        
-        // QR and business data
-        qrData: qrData,
-        businessName: businessName,
-        
-        // Timestamps
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        
-        // M-Pesa response
-        mpesaResponse: response.data,
-        
-        // CRITICAL: Enhanced metadata for proper categorization
-        paymentType: 'customer_initiated',
-        source: 'qr_scanner',
-        isValidMerchant: isValidMerchant, //  Mark if this is a real merchant
-        isDynamicAmount: qrData.dynamicAmount || false, //  Track if this was a dynamic amount transaction
-        
-        // NEW: Guest merchant tracking for dashboard queries
-        ...(isValidMerchant ? {} : {
-          guestMerchantInfo: {
-            originalMerchantId: merchantId,
-            businessName: businessName,
-            businessShortCode: businessShortCode,
-            isGuestTransaction: true,
-            createdAt: admin.firestore.FieldValue.serverTimestamp()
-          }
-        }),
-        
-        // NEW: Enhanced merchant info for valid merchants
-        ...(isValidMerchant && merchantData ? {
-          merchantInfo: {
-            name: merchantData.name,
-            email: merchantData.email,
-            phone: merchantData.phone
-          }
-        } : {}),
-
-        // Additional metadata
-        customerInfo: {
-          phoneNumber: formattedPhone,
-          initiatedAt: admin.firestore.FieldValue.serverTimestamp()
-        }
-      };
-
-      const transactionRef = await db.collection('transactions').add(transactionData);
-      
-      console.log(`ENHANCED: Customer transaction ${transactionRef.id} created`);
-      console.log('Merchant linking:', {
-        merchantId,
-        isValidMerchant,
-        businessName,
-        isDynamicAmount: qrData.dynamicAmount || false,
-        checkoutRequestID: response.data.CheckoutRequestID
-      });
-
-      // Return success response
-      res.status(200).json({
-        success: true,
-        message: 'STK push sent successfully',
-        data: {
+        mpesaResponse: {
           CheckoutRequestID: response.data.CheckoutRequestID,
           MerchantRequestID: response.data.MerchantRequestID,
-          CustomerMessage: response.data.CustomerMessage,
-          ResponseDescription: response.data.ResponseDescription,
-          transactionId: transactionRef.id,
-          transactionRef: transactionData.transactionRef,
-          // NEW: Include merchant validation info for frontend
-          merchantValidation: {
-            isValidMerchant,
-            merchantId: isValidMerchant ? merchantId : null,
-            businessName
-          }
-        }
+          ResponseCode: response.data.ResponseCode,
+          CustomerMessage: response.data.CustomerMessage
+        },
+        
+        transactionRef: accountRef,
+        source: 'QR_TERMINAL',
+        // Top-level index for the Callback Handler to find
+        CheckoutRequestID: response.data.CheckoutRequestID, 
+        
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      };
+
+      const docRef = await db.collection('transactions').add(transactionRecord);
+
+      return res.status(200).json({
+        success: true,
+        message: 'STK Push Triggered Successfully',
+        transactionId: docRef.id,
+        checkoutRequestId: response.data.CheckoutRequestID
       });
     } else {
-      // Handle M-Pesa API errors
-      console.error('M-Pesa API error:', response.data);
-      
-      // Still store failed transaction for tracking
-      const failedTransactionData = {
-        merchantId: isValidMerchant ? merchantId : null,
-        amount: parsedAmount,
-        phoneNumber: formattedPhone,
-        status: 'failed',
-        error: response.data.ResponseDescription || 'M-Pesa API error',
-        qrData: qrData,
-        businessName: businessName,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        paymentType: 'customer_initiated',
-        source: 'qr_scanner',
-        isValidMerchant: isValidMerchant,
-        isDynamicAmount: qrData.dynamicAmount || false,
-        mpesaResponse: response.data,
-        ...(isValidMerchant ? {} : {
-          guestMerchantInfo: {
-            originalMerchantId: merchantId,
-            businessName: businessName,
-            isGuestTransaction: true,
-            createdAt: admin.firestore.FieldValue.serverTimestamp()
-          }
-        })
-      };
-      
-      await db.collection('transactions').add(failedTransactionData);
-      console.log('Failed transaction stored');
-      
-      throw new Error(`M-Pesa API error: ${response.data.ResponseDescription}`);
+      throw new Error(response.data.CustomerMessage || 'Gateway rejected request');
     }
 
   } catch (error) {
-    console.error('Customer payment error:', error);
+    console.error('❌ STK Error:', error.response?.data || error.message);
     
-    let errorMessage = 'Failed to initiate payment';
-    if (error.response) {
-      console.error('M-Pesa API error response:', error.response.data);
-      errorMessage = error.response.data.errorMessage || error.response.data.ResponseDescription || errorMessage;
-    } else if (error.message) {
-      errorMessage = error.message;
-    }
-
+    const errorMsg = error.response?.data?.errorMessage || 'Lipa Na M-Pesa initiation failed';
+    
     res.status(500).json({
       success: false,
-      message: errorMessage,
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: errorMsg,
+      details: error.response?.data
     });
   }
 }
@@ -440,289 +298,252 @@ async function triggerCustomerPayment(req, res) {
 // ENHANCED: Callback handler with better transaction linking and status updates
 async function handleCallback(req, res) {
   try {
-    const callbackData = req.body;
-    console.log('M-Pesa Callback received:', JSON.stringify(callbackData, null, 2));
-
-    if (callbackData.Body && callbackData.Body.stkCallback) {
-      const stkCallback = callbackData.Body.stkCallback;
-      const checkoutRequestID = stkCallback.CheckoutRequestID;
-      const resultCode = stkCallback.ResultCode;
-      const resultDesc = stkCallback.ResultDesc;
-      
-      let status;
-      if (resultCode === 0) {
-        status = 'success';
-      } else if (resultCode === 1032) {
-        status = 'cancelled';
-      } else {
-        status = 'failed';
-      }
-
-      console.log(`Processing callback for CheckoutRequestID: ${checkoutRequestID}, ResultCode: ${resultCode}, Status: ${status}`);
-
-      // Extract callback metadata
-      const callbackMetadata = {};
-      if (stkCallback.CallbackMetadata && stkCallback.CallbackMetadata.Item) {
-        stkCallback.CallbackMetadata.Item.forEach(item => {
-          callbackMetadata[item.Name] = item.Value;
-        });
-      }
-
-      console.log('Callback metadata:', callbackMetadata);
-
-      // Find the transaction using enhanced search
-      const transactionDoc = await getTransactionByCheckoutRequestID(checkoutRequestID);
-
-      if (transactionDoc) {
-        console.log(`Found transaction ${transactionDoc.id} for callback update`);
-        console.log(`Transaction belongs to merchant: ${transactionDoc.data.merchantId || 'Guest'}`);
-        
-        const updateData = {
-          status,
-          resultCode,
-          resultDescription: resultDesc,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          callbackData: stkCallback,
-          callbackMetadata,
-          callbackReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
-          // NEW: Enhanced callback processing
-          callbackProcessed: true,
-          lastCallbackAt: admin.firestore.FieldValue.serverTimestamp()
-        };
-
-        // Add payment details if successful
-        if (resultCode === 0 && callbackMetadata.Amount) {
-          updateData.paymentDetails = {
-            amount: parseFloat(callbackMetadata.Amount),
-            mpesaReceiptNumber: callbackMetadata.MpesaReceiptNumber,
-            transactionDate: callbackMetadata.TransactionDate,
-            phoneNumber: callbackMetadata.PhoneNumber,
-            completedAt: admin.firestore.FieldValue.serverTimestamp()
-          };
-          
-          updateData['mpesaResponse.CustomerMessage'] = `Payment of KSH ${callbackMetadata.Amount} received from ${callbackMetadata.PhoneNumber}. Receipt: ${callbackMetadata.MpesaReceiptNumber}`;
-        }
-
-        // Update the transaction
-        await transactionDoc.ref.update(updateData);
-        console.log(`Transaction ${transactionDoc.id} updated with status: ${status}`);
-        
-        // Log result with merchant info
-        const merchantInfo = transactionDoc.data.merchantId ? 
-          `for merchant ${transactionDoc.data.merchantId}` : 
-          `for guest merchant ${transactionDoc.data.guestMerchantInfo?.businessName || 'Unknown'}`;
-        
-        if (status === 'success') {
-          console.log(`Payment successful: KSH ${callbackMetadata.Amount} from ${callbackMetadata.PhoneNumber} ${merchantInfo}`);
-        } else {
-          console.log(`Payment ${status}: ${resultDesc} ${merchantInfo}`);
-        }
-      } else {
-        console.log(`No transaction found for CheckoutRequestID: ${checkoutRequestID}`);
-        // ENHANCED: Store orphaned callbacks for debugging
-        await db.collection('orphaned_callbacks').add({
-          checkoutRequestID,
-          callbackData,
-          receivedAt: admin.firestore.FieldValue.serverTimestamp(),
-          reason: 'transaction_not_found'
-        });
-      }
+    // 1. SAFE PARSING
+    const { Body } = req.body;
+    
+    // Validate structure exists
+    if (!Body || !Body.stkCallback) {
+        console.error('Invalid Callback Structure:', JSON.stringify(req.body));
+        return res.json({ ResultCode: 0, ResultDesc: "Invalid Payload" });
     }
 
-    // Always acknowledge receipt
-    res.status(200).json({ 
-      ResultCode: 0, 
-      ResultDesc: "Callback received successfully" 
-    });
+    const { stkCallback } = Body;
+    const { 
+      MerchantRequestID, 
+      CheckoutRequestID, 
+      ResultCode, 
+      ResultDesc, 
+      CallbackMetadata 
+    } = stkCallback;
+
+    console.log(`🔔 Callback Received | CheckoutID: ${CheckoutRequestID} | Code: ${ResultCode}`);
+
+    // 2. DETERMINE STATUS
+    // 0 = Success | 1032 = Cancelled | Others = Failed
+    let status = 'failed';
+    if (ResultCode === 0) status = 'success';
+    else if (ResultCode === 1032) status = 'cancelled';
+
+    // 3. EXTRACT METADATA (Receipt, Amount, etc.)
+    let meta = {};
+    if (CallbackMetadata && CallbackMetadata.Item) {
+      CallbackMetadata.Item.forEach(item => {
+        meta[item.Name] = item.Value;
+      });
+    }
+
+    // 4. FIND TRANSACTION (Dual Search Strategy)
+    // Try Top-Level Index first (Fast), then Nested (Legacy/Safe)
+    let transactionDoc = null;
+    
+    // Search A: Top Level
+    let snapshot = await db.collection('transactions')
+      .where('CheckoutRequestID', '==', CheckoutRequestID)
+      .limit(1)
+      .get();
+
+    // Search B: Nested (Fallback)
+    if (snapshot.empty) {
+       snapshot = await db.collection('transactions')
+        .where('mpesaResponse.CheckoutRequestID', '==', CheckoutRequestID)
+        .limit(1)
+        .get();
+    }
+
+    if (!snapshot.empty) {
+      transactionDoc = snapshot.docs[0];
+      const currentData = transactionDoc.data();
+      
+      console.log(`✅ Linked to Transaction: ${transactionDoc.id} (${currentData.merchantName})`);
+
+      // 5. UPDATE FIRESTORE
+      const updateData = {
+        status: status,
+        resultCode: ResultCode,
+        resultDesc: ResultDesc,
+        
+        // Save raw callback for audit
+        mpesaCallback: stkCallback,
+        
+        // Metadata Updates
+        ...(meta.MpesaReceiptNumber && { receiptNumber: meta.MpesaReceiptNumber }),
+        ...(meta.Amount && { amount: meta.Amount }), // Confirm actual paid amount
+        ...(meta.PhoneNumber && { phoneNumber: meta.PhoneNumber }),
+        
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        callbackReceivedAt: admin.firestore.FieldValue.serverTimestamp()
+      };
+
+      await transactionDoc.ref.update(updateData);
+      
+      console.log(`💾 Transaction updated to: ${status}`);
+
+    } else {
+      // 6. ORPHAN HANDLING (Critical for Debugging)
+      console.warn(`⚠️ ORPHAN CALLBACK: No transaction found for ${CheckoutRequestID}`);
+      
+      await db.collection('orphaned_callbacks').add({
+        CheckoutRequestID,
+        MerchantRequestID,
+        ResultCode,
+        ResultDesc,
+        meta,
+        receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+        rawBody: req.body
+      });
+    }
+
+    // 7. ACKNOWLEDGE TO SAFARICOM
+    // Always return 200 OK immediately to stop them from retrying
+    res.json({ ResultCode: 0, ResultDesc: "Callback processed successfully" });
 
   } catch (error) {
-    console.error('Callback processing error:', error);
-    res.status(500).json({ error: 'Failed to process callback' });
+    console.error('❌ Callback Error:', error);
+    // Still return success to Safaricom to prevent queue blockage
+    res.json({ ResultCode: 0, ResultDesc: "Error processed" });
   }
 }
 
 // Merchant STK Push (existing functionality)
 async function triggerSTKPush(req, res) {
-  const { phoneNumber, amount, reference, description } = req.body;
-  const merchantId = req.user.uid; // From auth middleware
+  console.log('🚀 STK Push Request Initialized');
   
-  console.log('Merchant STK Push request:', { 
-    phoneNumber, 
-    amount, 
-    reference, 
-    description,
-    merchantId 
-  });
-
-  if (!phoneNumber || !amount) {
-    console.error('Phone number and amount are required');
-    return res.status(400).json({ error: 'Phone number and amount are required' });
-  }
-
-  // Validate phone number format
-  if (!/^254\d{9}$/.test(phoneNumber)) {
-    console.error('Invalid phone number format:', phoneNumber);
-    return res.status(400).json({ error: 'Phone number must be in format 254XXXXXXXXX (12 digits)' });
-  }
-
-  // Sandbox only works with test number 254708374149
-  if (process.env.NODE_ENV !== 'production' && phoneNumber !== '254708374149') {
-    console.error('Sandbox only works with test number 254708374149');
-    return res.status(400).json({ error: 'Sandbox only works with test number 254708374149' });
-  }
-
-  // Validate amount
-  const parsedAmount = parseFloat(amount);
-  if (isNaN(parsedAmount) || parsedAmount <= 0) {
-    console.error('Invalid amount:', amount);
-    return res.status(400).json({ error: 'Amount must be a positive number' });
+  // 1. DATA DESTRUCTURING
+  // Matches the flat object sent by your fetch() call in PayPrompt.jsx
+  const { phoneNumber, amount, merchantId, name, reference } = req.body;
+  
+  // 2. INPUT VALIDATION
+  if (!phoneNumber || !amount || !merchantId) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'Invalid payload: Phone, Amount, and Merchant ID are required' 
+    });
   }
 
   try {
-    // Verify merchant exists
-    const merchantDoc = await db.collection('merchants').doc(merchantId).get();
-    if (!merchantDoc.exists) {
-      return res.status(404).json({ error: 'Merchant not found' });
+    // 3. PHONE SANITIZATION
+    let formattedPhone = phoneNumber.replace(/\D/g, '');
+    if (formattedPhone.startsWith('0')) formattedPhone = '254' + formattedPhone.slice(1);
+    if ((formattedPhone.startsWith('7') || formattedPhone.startsWith('1')) && formattedPhone.length === 9) {
+      formattedPhone = '254' + formattedPhone;
     }
 
-    const merchantData = merchantDoc.data();
-    console.log('Merchant found:', merchantData.name);
+    // --- SANDBOX SECURITY GATE ---
+    // If not in production, force the use of the Safaricom Test Number
+   /* if (process.env.NODE_ENV !== 'production' && formattedPhone !== '254708374149') {
+       return res.status(400).json({ 
+         success: false, 
+         message: 'Sandbox Error: You must use the test number 254708374149' 
+       });
+    }
+       */
 
+    const parsedAmount = Math.ceil(parseFloat(amount));
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid amount' });
+    }
+
+    // 4. FETCH MERCHANT PROFILE
+    // We pull fresh data from Firestore to ensure the shortcode is correct
+    const merchantDoc = await db.collection('merchants').doc(merchantId).get();
+    
+    if (!merchantDoc.exists) {
+      return res.status(404).json({ success: false, message: 'Merchant not found' });
+    }
+    const merchantData = merchantDoc.data();
+
+    // 5. GENERATE AUTH & TIMESTAMP
     const accessToken = await generateAccessToken();
     const now = new Date();
-    const timestamp = now.getFullYear().toString() +
-      String(now.getMonth() + 1).padStart(2, '0') +
-      String(now.getDate()).padStart(2, '0') +
-      String(now.getHours()).padStart(2, '0') +
-      String(now.getMinutes()).padStart(2, '0') +
-      String(now.getSeconds()).padStart(2, '0'); // YYYYMMDDHHMMSS
+    const timestamp = now.toISOString().replace(/[^0-9]/g, '').slice(0, 14); 
 
+    // Password: Base64(Shortcode + Passkey + Timestamp)
     const password = Buffer.from(
       `${process.env.MPESA_SHORTCODE}${process.env.MPESA_PASSKEY}${timestamp}`
     ).toString('base64');
 
-    const transactionRef = reference || `QR_${timestamp}`;
+    // 6. REFERENCE OPTIMIZATION (Strict M-Pesa Limits)
+    // AccountReference: Max 12 chars
+    const cleanName = (merchantData.name || 'MERCHANT').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    const safeRefName = cleanName.slice(0, 8); 
+    const timeSuffix = timestamp.slice(-4);      
+    const accountRef = `${safeRefName}${timeSuffix}`;
 
-    const payload = {
-      BusinessShortCode: process.env.MPESA_SHORTCODE,
+    // TransactionDesc: Max 13 chars
+    const safeDesc = `Pay ${cleanName.slice(0, 9)}`;
+
+    // 7. CONSTRUCT PAYLOAD
+    const stkPushData = {
+      BusinessShortCode: process.env.MPESA_SHORTCODE, 
       Password: password,
       Timestamp: timestamp,
-      TransactionType: 'CustomerPayBillOnline',
+      TransactionType: 'CustomerPayBillOnline', // Change to 'CustomerBuyGoodsOnline' if you are a Till
       Amount: parsedAmount,
-      PartyA: phoneNumber,
-      PartyB: process.env.MPESA_SHORTCODE,
-      PhoneNumber: phoneNumber,
+      PartyA: formattedPhone,
+      PartyB: process.env.MPESA_SHORTCODE, 
+      PhoneNumber: formattedPhone,
       CallBackURL: `${process.env.SERVER_URL}/api/daraja/stk-callback`,
-      AccountReference: transactionRef,
-      TransactionDesc: description || 'QR Payment',
+      AccountReference: accountRef,
+      TransactionDesc: safeDesc
     };
 
-    console.log('STK Push Payload:', JSON.stringify(payload, null, 2));
+    console.log("📤 Sending STK Payload:", JSON.stringify(stkPushData, null, 2));
 
+    // 8. GATEWAY EXECUTION
     const response = await axios.post(
-      `${MPESA_BASE_URL}/mpesa/stkpush/v1/processrequest`,
-      payload,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }
+      `${process.env.MPESA_BASE_URL}/mpesa/stkpush/v1/processrequest`,
+      stkPushData,
+      { headers: { 'Authorization': `Bearer ${accessToken}` } }
     );
 
-    console.log('STK Push Response:', JSON.stringify(response.data, null, 2));
-
-    // Enhanced transaction storage with consistent field naming
-    const transactionData = {
-      merchantId,
-      phoneNumber,
-      amount: parsedAmount,
-      status: 'pending',
-      transactionRef,
-      description: description || 'QR Payment',
-      MerchantRequestID: response.data.MerchantRequestID,
-      CheckoutRequestID: response.data.CheckoutRequestID,
-      CustomerMessage: response.data.CustomerMessage,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    // 9. HANDLE SUCCESS & LOG TO FIRESTORE
+    if (response.data.ResponseCode === "0") {
       
-      // M-Pesa response data
-      mpesaResponse: {
-        ResponseCode: response.data.ResponseCode,
-        ResponseDescription: response.data.ResponseDescription,
-        MerchantRequestID: response.data.MerchantRequestID,
-        CheckoutRequestID: response.data.CheckoutRequestID,
-        CustomerMessage: response.data.CustomerMessage
-      },
-      
-      // Merchant info
-      merchantInfo: {
-        name: merchantData.name,
-        phone: merchantData.phone,
-        shortcode: merchantData.shortcode
-      },
-      
-      // Additional metadata
-      paymentType: 'merchant_initiated',
-      source: 'merchant_dashboard',
-      isValidMerchant: true,
-      isDynamicAmount: false
-    };
-
-    const docRef = await db.collection('transactions').add(transactionData);
-
-    console.log(`Transaction ${docRef.id} created successfully`);
-    console.log('Stored CheckoutRequestID:', response.data.CheckoutRequestID);
-    console.log('Stored merchantId:', merchantId);
-
-    // Check for error in response
-    if (response.data.errorCode || response.data.errorMessage) {
-      console.error('STK Push API error:', response.data);
-      
-      // Update transaction with error status
-      await docRef.update({
-        status: 'failed',
-        error: response.data.errorMessage || 'STK push API error',
+      const transactionRecord = {
+        merchantId, 
+        merchantName: merchantData.name,
+        amount: parsedAmount,
+        phoneNumber: formattedPhone,
+        status: 'pending',
+        
+        mpesaResponse: {
+          CheckoutRequestID: response.data.CheckoutRequestID,
+          MerchantRequestID: response.data.MerchantRequestID,
+          ResponseCode: response.data.ResponseCode,
+          CustomerMessage: response.data.CustomerMessage
+        },
+        
+        transactionRef: accountRef,
+        source: 'QR_TERMINAL',
+        // Top-level index for the Callback Handler to find
+        CheckoutRequestID: response.data.CheckoutRequestID, 
+        
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      });
+      };
 
-      return res.status(500).json({
-        error: response.data.errorMessage || 'STK push error',
-        details: response.data
-      });
-    }
+      const docRef = await db.collection('transactions').add(transactionRecord);
 
-    res.status(200).json({ 
-      status: 'success', 
-      data: response.data, 
-      transactionId: docRef.id,
-      transactionRef,
-      checkoutRequestID: response.data.CheckoutRequestID
-    });
-
-  } catch (error) {
-    console.error('STK Push error:', error);
-    
-    if (error.response) {
-      console.error('Response status:', error.response.status);
-      console.error('Response data:', error.response.data);
-      return res.status(500).json({
-        error: error.response.data.errorMessage || error.response.data.error || 'Failed to initiate STK push',
-        details: error.response.data,
-        status: error.response.status,
-      });
-    } else if (error.request) {
-      console.error('No response received:', error.request);
-      return res.status(500).json({
-        error: 'No response received from M-Pesa API',
-        details: error.message,
+      return res.status(200).json({
+        success: true,
+        message: 'STK Push Triggered Successfully',
+        transactionId: docRef.id,
+        checkoutRequestId: response.data.CheckoutRequestID
       });
     } else {
-      console.error('Error setting up request:', error.message);
-      return res.status(500).json({
-        error: error.message || 'Failed to initiate STK push'
-      });
+      throw new Error(response.data.CustomerMessage || 'Gateway rejected request');
     }
+
+  } catch (error) {
+    console.error('❌ STK Error:', error.response?.data || error.message);
+    
+    const errorMsg = error.response?.data?.errorMessage || 'Lipa Na M-Pesa initiation failed';
+    
+    res.status(500).json({
+      success: false,
+      message: errorMsg,
+      details: error.response?.data
+    });
   }
 }
 
@@ -731,49 +552,67 @@ async function createTestTransaction(req, res) {
   try {
     const { merchantId, amount, phoneNumber } = req.body;
     
+    // 1. Precise Validation
     if (!merchantId || !amount || !phoneNumber) {
       return res.status(400).json({
         error: 'Missing required fields: merchantId, amount, phoneNumber'
       });
     }
 
-    console.log('Creating test transaction...');
+    // 2. Fetch Merchant Details to "Hydrate" the transaction
+    // This mimics the "isValidMerchant" logic from the real STK route
+    const merchantDoc = await db.collection('merchants').doc(merchantId).get();
+    const merchantData = merchantDoc.exists ? merchantDoc.data() : { name: "Test Merchant" };
+
+    console.log(`🛠️ Creating simulated transaction for: ${merchantData.name}`);
     
+    // 3. Normalized Transaction Schema (Aligned with 2026 SaaS Model)
     const testTransactionData = {
+      // Core Identity
       merchantId: merchantId,
+      merchantName: merchantData.name,
       amount: parseFloat(amount),
       phoneNumber: phoneNumber,
-      status: 'pending',
-      CheckoutRequestID: `TEST_${Date.now()}`,
-      MerchantRequestID: `MR_${Date.now()}`,
-      transactionRef: `TEST_${Date.now()}`,
-      source: 'test_endpoint',
-      paymentType: 'test',
+      
+      // M-Pesa Simulation Keys
+      status: 'SUCCESS', // Set to SUCCESS immediately for testing UI updates
+      CheckoutRequestID: `TEST-CH-${Date.now()}`,
+      MerchantRequestID: `TEST-MR-${Date.now()}`,
+      reference: `TREF-${Date.now().toString().slice(-6)}`,
+      
+      // Metadata (Crucial for SubscriptionShield & Dashboard filtering)
+      source: 'test_environment',
+      paymentType: 'STK_PUSH_SIM',
       isValidMerchant: true,
-      isDynamicAmount: false,
+      isDynamic: true, // Matching your new QR flow
+      tier: merchantData.subscription?.tier || 'BASIC',
+      
+      // Precision Timestamps
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      
+      // Mocked Gateway Response
       mpesaResponse: {
-        ResponseCode: '0',
-        ResponseDescription: 'Success. Request accepted for processing',
-        CheckoutRequestID: `TEST_${Date.now()}`,
-        MerchantRequestID: `MR_${Date.now()}`,
-        CustomerMessage: 'Test transaction'
+        ResultCode: 0,
+        ResultDesc: "The service request is processed successfully.",
+        Amount: parseFloat(amount),
+        MpesaReceiptNumber: `TEST${Math.random().toString(36).toUpperCase().substring(2, 10)}`,
+        TransactionDate: moment().format('YYYYMMDDHHmmss'),
+        PhoneNumber: phoneNumber
       }
     };
     
     const docRef = await db.collection('transactions').add(testTransactionData);
-    console.log('Test transaction created:', docRef.id);
     
     res.status(201).json({
       success: true,
-      message: 'Test transaction created successfully',
+      message: 'Test transaction processed and stored',
       transactionId: docRef.id,
       data: testTransactionData
     });
     
   } catch (error) {
-    console.error('Test transaction creation failed:', error);
+    console.error('❌ Test transaction creation failed:', error);
     res.status(500).json({
       success: false,
       error: error.message
@@ -784,66 +623,88 @@ async function createTestTransaction(req, res) {
 // UPDATED: Generate QR code for merchant with support for dynamic amounts
 async function generateMerchantQR(req, res) {
   try {
-    const merchantId = req.user.uid;
-    const { description, reference, businessName, dynamicAmount = true } = req.body;
-
-    // Get merchant info
-    let merchantData = null;
-    try {
-      const merchantDoc = await db.collection('merchants').doc(merchantId).get();
-      if (merchantDoc.exists) {
-        merchantData = merchantDoc.data();
-      } else {
-        // Fallback to user auth data
-        const userRecord = await admin.auth().getUser(merchantId);
-        merchantData = {
-          name: userRecord.displayName || userRecord.email?.split('@')[0],
-          email: userRecord.email,
-          phone: userRecord.phoneNumber
-        };
-      }
-    } catch (error) {
-      console.log('Could not fetch merchant data:', error.message);
+    const merchantId = req.user.uid; 
+    
+    // 1. DATA RETRIEVAL
+    const merchantDoc = await db.collection('merchants').doc(merchantId).get();
+    
+    if (!merchantDoc.exists) {
+      return res.status(404).json({ success: false, message: 'Merchant profile not found' });
     }
+    
+    const merchantData = merchantDoc.data();
 
-    // Prepare QR data as query params
-    const qrData = {
-      merchantId: merchantId,
-      businessName: businessName || merchantData?.name || 'Merchant Store',
-      businessShortCode: process.env.MPESA_SHORTCODE,
-      description: description || 'Payment',
-      reference: reference || `QR_${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      version: '1.0',
-      type: 'merchant_payment',
-      dynamicAmount: dynamicAmount // New field indicating customer should enter amount
+    // 2. INPUT SANITIZATION
+    // We force the amount to be at least 1 to satisfy Safaricom's API
+    const rawAmount = req.body.amount;
+    const sanitizedAmount = Math.max(1, Math.ceil(parseFloat(rawAmount) || 1));
+    const size = req.body.size || "300";
+
+    // 3. TRANSACTION TYPE (BG = Till, PB = Paybill)
+    const trxCode = merchantData.accountType === 'till' ? 'BG' : 'PB';
+
+    // 4. AUTHENTICATION
+    const accessToken = await generateAccessToken();
+
+    // 5. PAYLOAD CONSTRUCTION (Safaricom Spec)
+    // Truncate name to 25 chars and remove special characters to avoid 400 errors
+    const cleanName = (merchantData.name || 'Merchant').replace(/[^a-zA-Z0-9 ]/g, '').substring(0, 25);
+    const cpi = merchantData.shortcode;
+
+    const payload = {
+      MerchantName: cleanName,
+      RefNo: merchantData.accountReference || "PAYMENT", 
+      Amount: sanitizedAmount, 
+      TrxCode: trxCode, 
+      CPI: cpi,
+      Size: size
     };
 
-    // Build the QR code URL (for the frontend /pay page)
-    // Make sure to set FRONTEND_URL in your .env, e.g. https://your-frontend.com
-    const frontendBaseUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-    const params = new URLSearchParams(qrData).toString();
-    const qrUrl = `${frontendBaseUrl}/pay?${params}`;
+    console.log('🚀 Standardized QR Request to Daraja:', payload);
 
-    console.log('Dynamic QR Code URL generated for merchant:', qrUrl);
-
-    res.status(200).json({
-      success: true,
-      message: 'QR Code generated successfully',
-      data: {
-        qrUrl, // <-- This is what you should encode as the QR code
-        merchantId: merchantId,
-        businessName: qrData.businessName,
-        dynamicAmount: dynamicAmount
+    // 6. CALL SAFARICOM QR API
+    const response = await axios.post(
+      `${process.env.MPESA_BASE_URL}/mpesa/qrcode/v1/generate`,
+      payload,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
       }
-    });
+    );
+
+    const safaricomData = response.data;
+
+    // Safaricom returns "00" for success in the QR API
+    if (safaricomData.ResponseCode === "00") {
+        console.log(`✅ Daraja QR Success: ${safaricomData.RequestID}`);
+        
+        res.status(200).json({
+          success: true,
+          data: {
+            qrCode: safaricomData.QRCode, 
+            meta: {
+              merchantId,
+              name: cleanName,
+              shortcode: cpi,
+              type: trxCode,
+              amount: sanitizedAmount
+            }
+          }
+        });
+    } else {
+        throw new Error(safaricomData.ResponseDescription || 'Safaricom QR Error');
+    }
 
   } catch (error) {
-    console.error('QR generation error:', error);
+    // Detailed error logging to see exactly what Daraja didn't like
+    console.error('❌ QR Backend Error:', error.response?.data || error.message);
+    
     res.status(500).json({
       success: false,
-      message: 'Failed to generate QR code',
-      error: error.message
+      message: error.response?.data?.errorMessage || 'Failed to generate M-PESA QR',
+      error: error.response?.data
     });
   }
 }
@@ -855,13 +716,11 @@ export {
   handleCallback, 
   generateAccessToken, 
   triggerCustomerPayment,
-  
   // Utility functions
   healthCheck,
   testMpesaConnection,
   testRegister,
   generateMerchantQR,
-  
   // Debug function
   createTestTransaction
 };

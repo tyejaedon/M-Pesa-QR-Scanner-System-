@@ -1,8 +1,8 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore'; // Essential for Subscription Sync
 
-
-console.log("Frontend API Key Check:", process.env.REACT_APP_FIREBASE_API_KEY);
+// Vite uses import.meta.env instead of process.env
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
   authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
@@ -13,5 +13,10 @@ const firebaseConfig = {
   measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID
 };
 
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
+
+// Export Services
 export const auth = getAuth(app);
+export const db = getFirestore(app); // This is what the SubscriptionProvider will use
+export default app;

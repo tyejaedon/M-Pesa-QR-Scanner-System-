@@ -3,8 +3,25 @@
   "schema": {
     "uid": "string",
     "name": "string",
+    "email": "string",
     "phone": "string",
     "shortcode": "string",
-    "createdAt": "timestamp"
+    "createdAt": "timestamp",
+    "accountType": "paybill",
+    "accountReference": "string",
+
+    "subscription": {
+    "tier": "BASIC",        
+    "status": "TRIALING",   
+    "expiry": "timestamp"  
+  },
+    "addons": {
+      "menuEnabled": "boolean", 
+      "menuTrialEnd": "timestamp" 
+    },
+    "metadata": {
+      "isBoarded": "boolean",
+      "lastLogin": "timestamp"
+    }
   }
 }

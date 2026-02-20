@@ -1,7 +1,7 @@
 import { db, admin } from './src/config/firebase.js';
 
-const targetUID = "jf5aeocYvOOjvH9SQ0hTZWLlrfe2";
-const businessName = "POLY-TECHNIC";
+const targetUID = "QuH2tp7vT8Nvf9uFnjMzTZ9zPAE2";
+const name = "BACSI";
 
 const generateBulkData = () => {
   const transactions = [];
@@ -61,7 +61,7 @@ async function seed() {
     });
 
     await batch.commit();
-    console.log(`✅ Successfully seeded 20 transactions for ${businessName}`);
+    console.log(`✅ Successfully seeded 20 transactions for ${name}`);
   } catch (error) {
     console.error("Seeding error:", error);
   } finally {
