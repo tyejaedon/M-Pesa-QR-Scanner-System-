@@ -1,6 +1,6 @@
 import { db, admin } from './src/config/firebase.js';
 
-const targetUID = "axe8ggZmZRSoeA7jkOhppIaFbK13";
+const targetUID = "QuH2tp7vT8Nvf9uFnjMzTZ9zPAE2";
 const name = "BACSI";
 
 const generateBulkData = () => {

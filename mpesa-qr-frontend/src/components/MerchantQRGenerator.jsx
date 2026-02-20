@@ -22,7 +22,8 @@ const MerchantQRGenerator = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const { user, merchantData } = useAuth();
+  const { user, merchantData, logout } = useAuth();
+  const [merchant, setMerchant] = useState(merchantData);
 
   const generateQRData = async () => {
     if (!user) {
@@ -131,7 +132,7 @@ const MerchantQRGenerator = () => {
             </h1>
           </div>
           <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest md:max-w-[200px] md:text-right">
-            Deploying secure payment nodes for {merchantData?.name || 'Merchant'}.
+            Deploying secure payment nodes for {merchant?.name || 'Merchant'}.
           </p>
         </div>
 
@@ -143,14 +144,15 @@ const MerchantQRGenerator = () => {
               <div className="space-y-2">
                 <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-70 italic">Verified Business Profile</p>
                 <h2 className="text-4xl md:text-5xl font-black uppercase italic tracking-tighter leading-none">
-                  {merchantData?.name || 'Loading Profile...'}
+                  {merchant.name || 'Loading Profile...'}
                 </h2>
                 <div className="flex gap-4 pt-2">
                   <Badge className="bg-zinc-950 text-white border-none px-4 py-1">
-                    Shortcode: {merchantData?.shortcode || '174379'}
+                    Shortcode: {merchant.shortcode || '174379'}
                   </Badge>
                   <Badge className="bg-zinc-950/20 text-zinc-900 border-none px-4 py-1 uppercase text-[9px]">
-                    {merchantData?.accountType || 'PAYBILL'}
+                    {merchant.accountType || 'PAYBILL'}
+                    {console.log(merchantData)}
                   </Badge>
                 </div>
               </div>
@@ -186,7 +188,7 @@ const MerchantQRGenerator = () => {
                   </h3>
                   <div className="flex justify-center gap-3">
                     <div className="px-4 py-2 bg-white dark:bg-zinc-800 rounded-xl text-[10px] font-black uppercase tracking-widest text-zinc-500">
-                      ID: {merchantData?.uid?.slice(-8).toUpperCase()}
+                      ID: {merchant?.uid?.slice(-8).toUpperCase()}
                     </div>
                   </div>
                 </div>

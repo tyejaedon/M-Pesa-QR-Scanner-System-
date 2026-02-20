@@ -46,7 +46,7 @@ const PublicMenuPage = () => {
 
         try {
             // ALIGNMENT: Backend expects { phoneNumber, amount, merchantId, name, reference }
-            const response = await axios.post(`${API_BASE_URL}/daraja/customer-payment`, {
+            const response = await axios.post(`${API_BASE_URL}/api/daraja/customer-payment`, {
                 phoneNumber: phoneNumber.startsWith('0') ? `254${phoneNumber.slice(1)}` : phoneNumber,
                 amount: selectedItem.price,
                 merchantId: merchantId,

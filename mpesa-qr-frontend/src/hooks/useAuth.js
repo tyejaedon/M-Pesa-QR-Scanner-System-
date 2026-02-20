@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useMemo, useState, useEffect } from 'react';
-import { 
-  onAuthStateChanged as firebaseOnAuthStateChanged, 
-  signOut as firebaseSignOut 
+import {
+  onAuthStateChanged as firebaseOnAuthStateChanged,
+  signOut as firebaseSignOut
 } from "firebase/auth";
-import { auth } from '../firebase'; 
+import { auth } from '../firebase';
 import axios from 'axios';
 import { API_BASE_URL } from '../utility/constants';
 
@@ -16,57 +16,55 @@ export function useAuth() {
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  
-  // This is the data causing the loop - we need to manage it carefully
   const [merchantData, setMerchantData] = useState(null);
 
   useEffect(() => {
-    console.log("🔄 AuthProvider: Initializing listener...");
-    
-    const unsubscribe = firebaseOnAuthStateChanged(auth, async (currentUser) => {
-      // 1. Set the Firebase Auth user first
+    const unsubscribe = firebaseOnAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      
-      if (currentUser) {
-        try {
-          console.log("🔍 AuthProvider: User detected, fetching merchant profile...");
-          const idToken = await currentUser.getIdToken();
-          
-          // 2. Verify with your backend
-          const response = await axios.post(
-            `${API_BASE_URL}/api/auth/verify-token`,
-            { idToken },
-            {
-              headers: {
-                'Authorization': `Bearer ${idToken}`,
-                'Content-Type': 'application/json',
-                'ngrok-skip-browser-warning': 'true'
-              }
-            }
-          );
-          
-          if (response.data?.user) {
-            console.log("✅ AuthProvider: Merchant profile loaded.");
-            setMerchantData(response.data.user);
-          }
-        } catch (error) {
-          console.error('⚠️ AuthProvider: Error fetching merchant data:', error);
-          // Self-healing: User is logged in to Firebase, but backend failed.
-          // We keep user true, but merchantData null. 
-          // Your dashboard should handle "Loading Profile..." if user exists but merchantData doesn't.
-          setMerchantData(null);
-        }
-      } else {
-        console.log("👋 AuthProvider: User logged out.");
+      // If no user is logged in, kill the loading state immediately
+      if (!currentUser) {
         setMerchantData(null);
+        setLoading(false);
       }
-      
-      // 3. Finalize loading
-      setLoading(false);
     });
-
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    const fetchMerchantProfile = async () => {
+      // 1. Only fetch if we have a Firebase session but no local profile yet
+      if (!user) return;
+
+      try {
+        const idToken = await user.getIdToken();
+
+        // 2. This hits your updated backend that now returns the FULL Firestore doc
+        const response = await axios.get( // Changed to GET
+          `${API_BASE_URL}/api/auth/profile`, // Changed to /profile
+          {
+            headers: {
+              'Authorization': `Bearer ${idToken}`,
+              'ngrok-skip-browser-warning': 'true'
+            }
+          }
+        );
+
+        // 3. Update merchantData with the comprehensive profile from the backend
+        if (response.data?.success && response.data?.user) {
+          setMerchantData(response.data.user);
+        }
+      } catch (error) {
+        console.error('⚠️ Merchant Profile Fetch Failed:', error.response?.data || error.message);
+        // Fallback: If backend fails, we keep the user but set merchantData to null
+        setMerchantData(null);
+      } finally {
+        // 4. Critical: Only set loading to false AFTER the profile attempt
+        setLoading(false);
+      }
+    };
+
+    fetchMerchantProfile();
+  }, [user]);
 
   const logout = async () => {
     try {
@@ -74,18 +72,17 @@ export function AuthProvider({ children }) {
       setMerchantData(null);
       setUser(null);
     } catch (error) {
-      console.error('Error logging out:', error);
+      console.error('Logout error:', error);
     }
   };
 
-  // --- CRITICAL FIX: MEMOIZATION ---
   const value = useMemo(() => ({
-    user,           // The Firebase Object
-    merchantData,   // The Database Object (Missing in your previous code!)
+    user,
+    merchantData,
     loading,
-    setMerchantData, // Expose setter so Login.jsx can update it manually
+    setMerchantData, // Allows manual updates (e.g., after an upgrade)
     logout
-  }), [user, merchantData, loading]); 
+  }), [user?.uid, merchantData, loading]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

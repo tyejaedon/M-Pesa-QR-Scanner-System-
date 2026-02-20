@@ -6,7 +6,7 @@ import Button from './ui/Button';
 import Input from './ui/Input';
 import Label from './ui/Label';
 import Badge from './ui/Badge';
-import { Building, Shield, UtensilsCrossed, Loader2, Store } from 'lucide-react';
+import { Building, Shield, UtensilsCrossed, Loader2, Store, ShieldCheck } from 'lucide-react';
 import { API_BASE_URL } from '../utility/constants';
 import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom'; // Added Link for better UX
@@ -162,7 +162,7 @@ function Register() {
                 )}
 
                 {step === 1 ? (
-  <form onSubmit={handleNextStep} className="space-y-5 md:space-y-6 animate-in slide-in-from-right duration-500">
+                  <form onSubmit={handleNextStep} className="space-y-5 md:space-y-6 animate-in slide-in-from-right duration-500">
                     <div className="space-y-1">
                       <h3 className="text-lg md:text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">Business Profile</h3>
                       <div className="flex flex-wrap gap-2 justify-between items-center">
@@ -175,24 +175,24 @@ function Register() {
                       <div className="space-y-1 md:space-y-1.5 md:col-span-2">
                         <Label className="text-xs">Business Name</Label>
                         {/* FIXED: Added placeholder visibility & dark mode backgrounds */}
-                        <Input name="name" placeholder="e.g., Urban Coffee House" value={formData.name} onChange={handleChange} 
+                        <Input name="name" placeholder="e.g., Urban Coffee House" value={formData.name} onChange={handleChange}
                           className="h-11 md:h-12 bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white placeholder:text-zinc-500 dark:placeholder:text-zinc-500 focus:border-orange-500 dark:focus:border-orange-500 transition-all text-sm" />
                       </div>
 
                       <div className="space-y-1 md:space-y-1.5 md:col-span-2">
                         <Label className="text-xs">Email Access</Label>
-                        <Input name="email" type="email" placeholder="admin@business.com" value={formData.email} onChange={handleChange} 
+                        <Input name="email" type="email" placeholder="admin@business.com" value={formData.email} onChange={handleChange}
                           className="h-11 md:h-12 bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white placeholder:text-zinc-500 dark:placeholder:text-zinc-500 focus:border-orange-500 transition-all text-sm" />
                       </div>
 
                       <div className="space-y-1 md:space-y-1.5">
                         <Label className="text-xs">Password</Label>
-                        <Input name="password" type="password" placeholder="••••••••" value={formData.password} onChange={handleChange} 
+                        <Input name="password" type="password" placeholder="••••••••" value={formData.password} onChange={handleChange}
                           className="h-11 md:h-12 bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white placeholder:text-zinc-500 dark:placeholder:text-zinc-500 focus:border-orange-500 transition-all text-sm" />
                       </div>
                       <div className="space-y-1 md:space-y-1.5">
                         <Label className="text-xs">Confirm</Label>
-                        <Input name="confirmPassword" type="password" placeholder="••••••••" value={formData.confirmPassword} onChange={handleChange} 
+                        <Input name="confirmPassword" type="password" placeholder="••••••••" value={formData.confirmPassword} onChange={handleChange}
                           className="h-11 md:h-12 bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white placeholder:text-zinc-500 dark:placeholder:text-zinc-500 focus:border-orange-500 transition-all text-sm" />
                       </div>
                     </div>
@@ -229,20 +229,24 @@ function Register() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                         <div className="space-y-1 md:space-y-1.5">
                           <Label className="text-xs">Phone Number</Label>
-                          <Input name="phone" placeholder="2547..." value={formData.phone} onChange={handleChange} 
+                          <Input name="phone" placeholder="2547..." value={formData.phone} onChange={handleChange}
                             className="h-11 md:h-12 bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white placeholder:text-zinc-500 dark:placeholder:text-zinc-500 font-mono text-sm focus:border-orange-500 transition-all" />
                         </div>
                         <div className="space-y-1 md:space-y-1.5">
                           <Label className="text-xs truncate">{formData.accountType === 'till' ? 'Till Number' : 'Shortcode'}</Label>
-                          <Input name="shortcode" placeholder={formData.accountType === 'till' ? "e.g. 123456" : "e.g. 888888"} value={formData.shortcode} onChange={handleChange} 
+                          <Input name="shortcode" placeholder={formData.accountType === 'till' ? "e.g. 123456" : "e.g. 888888"} value={formData.shortcode} onChange={handleChange}
                             className="h-11 md:h-12 bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white placeholder:text-zinc-500 dark:placeholder:text-zinc-500 font-mono text-sm focus:border-orange-500 transition-all" />
                         </div>
                       </div>
                     </div>
 
-                    <Button type="submit" className="w-full h-12 md:h-14 bg-zinc-900 dark:bg-white hover:bg-zinc-800 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 font-black uppercase tracking-widest text-[10px] md:text-xs rounded-xl shadow-xl shadow-zinc-200 dark:shadow-none transition-all hover:translate-y-[-2px]">
-                      Initialize Terminal
-                    </Button>
+<Button 
+  type="submit" 
+  className="w-full h-12 md:h-14 bg-gradient-to-b from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 text-white font-black uppercase tracking-widest text-[10px] md:text-xs rounded-xl shadow-xl shadow-orange-600/40 dark:shadow-orange-500/20 border border-orange-700/50 border-t-white/30 transition-all hover:translate-y-[-2px] active:scale-[0.95] active:translate-y-[0px] flex items-center justify-center gap-2"
+>
+  <ShieldCheck className="w-4 h-4" />
+  Create Account
+</Button>
                   </form>
                 ) : (
                   /* --- STEP 2: PLANS (SANDBOX) --- */
@@ -256,47 +260,78 @@ function Register() {
                       {/* Core Plan */}
                       <div
                         onClick={() => setSelectedPlan('core')}
-                        className={`group relative p-3 md:p-4 rounded-2xl border-2 transition-all cursor-pointer ${selectedPlan === 'core' ? 'border-orange-600 bg-orange-50/50' : 'border-zinc-100 hover:border-zinc-200'}`}
+                        className={`group relative p-3 md:p-4 rounded-2xl border-2 transition-all cursor-pointer ${selectedPlan === 'core'
+                            ? 'border-orange-600 bg-orange-50/50 dark:bg-orange-500/10'
+                            : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 hover:border-zinc-300 dark:hover:border-zinc-700'
+                          }`}
                       >
                         <div className="flex justify-between items-center mb-1">
-                          <h4 className="font-black uppercase italic text-xs md:text-sm text-zinc-900">Core Pay</h4>
-                          <Badge variant="secondary" className="text-[9px] md:text-xs">Sandbox Free</Badge>
+                          {/* FIXED: Text color now flips to white in dark mode */}
+                          <h4 className={`font-black uppercase italic text-xs md:text-sm ${selectedPlan === 'core' ? 'text-orange-600' : 'text-zinc-900 dark:text-white'}`}>
+                            Core Pay
+                          </h4>
+                          <Badge variant="secondary" className="text-[9px] md:text-xs bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
+                            7-Day Free Trial
+                          </Badge>
+                           <span className="text-[10px] md:text-xs font-black text-orange-600">
+                            KES 700<span className="text-[8px] md:text-[10px] text-zinc-400 font-normal">/mo</span>
+                          </span>
                         </div>
-                        <p className="text-[9px] md:text-[10px] text-zinc-500 uppercase font-bold tracking-tight pr-4">Standard QR Generation & 7-Day History</p>
-                        {selectedPlan === 'core' && <div className="absolute inset-0 border-2 border-orange-600 rounded-2xl pointer-events-none" />}
+                        <p className="text-[9px] md:text-[10px] text-zinc-500 dark:text-zinc-400 uppercase font-bold tracking-tight pr-4">
+                          Standard QR Generation & 7-Day History
+                        </p>
                       </div>
 
                       {/* Elite Plan */}
                       <div
                         onClick={() => setSelectedPlan('elite')}
-                        className={`group relative p-3 md:p-4 rounded-2xl border-2 transition-all cursor-pointer ${selectedPlan === 'elite' ? 'border-orange-600 bg-orange-50/50' : 'border-zinc-100 hover:border-zinc-200'}`}
+                        className={`group relative p-3 md:p-4 rounded-2xl border-2 transition-all cursor-pointer ${selectedPlan === 'elite'
+                            ? 'border-orange-600 bg-orange-50/50 dark:bg-orange-500/10'
+                            : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 hover:border-zinc-300 dark:hover:border-zinc-700'
+                          }`}
                       >
                         <div className="flex justify-between items-center mb-1">
-                          <h4 className="font-black uppercase italic text-xs md:text-sm text-zinc-900">Elite Analytics</h4>
-                          <span className="text-[10px] md:text-xs font-black text-orange-600">KES 1,500<span className="text-[8px] md:text-[10px] text-zinc-400 font-normal">/mo</span></span>
+                          <h4 className={`font-black uppercase italic text-xs md:text-sm ${selectedPlan === 'elite' ? 'text-orange-600' : 'text-zinc-900 dark:text-white'}`}>
+                            Elite Analytics
+                          </h4>
+                          <span className="text-[10px] md:text-xs font-black text-orange-600">
+                            KES 1,500<span className="text-[8px] md:text-[10px] text-zinc-400 font-normal">/mo</span>
+                          </span>
                         </div>
-                        <p className="text-[9px] md:text-[10px] text-zinc-500 uppercase font-bold tracking-tight pr-4">Predictive AI, Unlimited History & Pro Ledger</p>
-                        {selectedPlan === 'elite' && <div className="absolute inset-0 border-2 border-orange-600 rounded-2xl pointer-events-none" />}
+                        <p className="text-[9px] md:text-[10px] text-zinc-500 dark:text-zinc-400 uppercase font-bold tracking-tight pr-4">
+                          Predictive AI, Unlimited History & Pro Ledger
+                        </p>
                       </div>
                     </div>
 
-                    <div className="pt-4 border-t border-zinc-100">
-                      <Label className="mb-2 md:mb-3 block text-[10px] md:text-xs uppercase tracking-widest text-zinc-400">Optional Modules</Label>
+                    <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800">
+                      <Label className="mb-2 md:mb-3 block text-[10px] md:text-xs uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
+                        Optional Modules
+                      </Label>
                       <div
                         onClick={() => setMenuAddon(!menuAddon)}
-                        className={`p-3 md:p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${menuAddon ? 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500' : 'border-zinc-100 hover:border-zinc-200'}`}
+                        className={`p-3 md:p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${menuAddon
+                            ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10 ring-1 ring-emerald-500'
+                            : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 hover:border-zinc-300 dark:hover:border-zinc-700'
+                          }`}
                       >
                         <div className="flex items-center gap-3 md:gap-4 truncate">
-                          <div className={`p-2 md:p-2.5 rounded-xl shrink-0 ${menuAddon ? 'bg-emerald-100 text-emerald-600' : 'bg-zinc-100 text-zinc-400'}`}>
+                          <div className={`p-2 md:p-2.5 rounded-xl shrink-0 ${menuAddon ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400'}`}>
                             <UtensilsCrossed className="w-4 h-4 md:w-5 md:h-5" />
                           </div>
                           <div className="truncate">
-                            <h4 className={`font-black uppercase text-[10px] md:text-xs ${menuAddon ? 'text-emerald-900' : 'text-zinc-600'}`}>Digital Menu</h4>
-                            <p className="text-[8px] md:text-[10px] text-zinc-400 font-bold uppercase tracking-wide truncate">QR-Linked Product Catalog</p>
+                            <h4 className={`font-black uppercase text-[10px] md:text-xs ${menuAddon ? 'text-emerald-900 dark:text-emerald-400' : 'text-zinc-700 dark:text-zinc-300'}`}>
+                              Digital Menu
+                            </h4>
+                            <p className="text-[8px] md:text-[10px] text-zinc-500 dark:text-zinc-500 font-bold uppercase tracking-wide truncate">
+                              QR-Linked Product Catalog
+                            </p>
                           </div>
                         </div>
                         <div className="text-right pl-2 shrink-0">
-                          <span className={`block text-[10px] md:text-xs font-black ${menuAddon ? 'text-emerald-600' : 'text-zinc-300'}`}>+ KES 500</span>
+                          <span className={`block text-[10px] md:text-xs font-black ${menuAddon ? 'text-emerald-600' : 'text-zinc-400 dark:text-zinc-500'}`}>
+                            + KES 500
+                          </span>
                         </div>
                       </div>
                     </div>

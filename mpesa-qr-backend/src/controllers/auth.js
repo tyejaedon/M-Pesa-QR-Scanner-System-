@@ -407,6 +407,62 @@ async function fixAllIncompleteUsers(req, res) {
   }
 }
 
+async function verifyAndFetchProfile(req, res) {
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ success: false, error: 'No token provided' });
+  }
+
+  const token = authHeader.split('Bearer ')[1];
+
+  try {
+    // 1. Verify the identity via Firebase
+    const decodedToken = await admin.auth().verifyIdToken(token);
+    const uid = decodedToken.uid;
+
+    // 2. FETCH THE MERCHANT DATA FROM FIRESTORE
+    // This is the step that actually populates your merchantData UI
+    const merchantDoc = await admin.firestore().collection('merchants').doc(uid).get();
+
+    if (!merchantDoc.exists) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Merchant profile not found in database' 
+      });
+    }
+
+    const merchantData = merchantDoc.data();
+
+    // 3. RESPOND WITH THE FULL SCHEMA
+    // This matches the response.data.user expectation in your AuthProvider
+    return res.status(200).json({
+      success: true,
+      user: {
+        uid: uid,
+        name: merchantData.name,
+        email: merchantData.email,
+        phone: merchantData.phone,
+        shortcode: merchantData.shortcode,
+        accountType: merchantData.accountType || 'paybill',
+        subscription: {
+          tier: merchantData.subscription?.tier || 'BASIC',
+          status: merchantData.subscription?.status || 'TRIALING',
+          expiry: merchantData.subscription?.expiry
+        },
+        addons: {
+          menuEnabled: merchantData.addons?.menuEnabled || false
+        },
+        metadata: merchantData.metadata || {}
+      }
+    });
+
+  } catch (error) {
+    console.error("❌ Auth Verification Error:", error.message);
+    res.status(401).json({ success: false, error: 'Session expired or invalid' });
+  }
+}
+
 export  { 
   createUserwithEmailandPaassword, 
   signInwithEmailandPassword, 
@@ -414,5 +470,6 @@ export  {
   cleanupIncompleteUser, 
   checkUserStatus,
   diagnoseProblem,
-  fixAllIncompleteUsers
+  fixAllIncompleteUsers,
+  verifyAndFetchProfile
 };

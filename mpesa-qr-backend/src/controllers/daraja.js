@@ -716,13 +716,11 @@ export {
   handleCallback, 
   generateAccessToken, 
   triggerCustomerPayment,
-  
   // Utility functions
   healthCheck,
   testMpesaConnection,
   testRegister,
   generateMerchantQR,
-  
   // Debug function
   createTestTransaction
 };
